@@ -109,3 +109,20 @@ export const panelChangesSchema = z.strictObject({
 
 export type PanelCreateInput = z.output<typeof panelCreateSchema>
 export type PanelChanges = z.output<typeof panelChangesSchema>
+
+const NAME_MESSAGE = 'name must be the window title, e.g. "api logs"'
+const SIZE_MESSAGE = 'width and height must be whole numbers of pixels, at least 200'
+const POSITION_MESSAGE = 'x and y must be whole numbers of pixels'
+
+// Input of window_update: fields sent replace those fields. The first call must include a name.
+export const windowUpdateSchema = z.strictObject({
+  name: z.string({ error: NAME_MESSAGE }).trim().min(1, { error: NAME_MESSAGE }).optional(),
+  width: z.int({ error: SIZE_MESSAGE }).min(200, { error: SIZE_MESSAGE }).optional(),
+  height: z.int({ error: SIZE_MESSAGE }).min(200, { error: SIZE_MESSAGE }).optional(),
+  x: z.int({ error: POSITION_MESSAGE }).optional(),
+  y: z.int({ error: POSITION_MESSAGE }).optional(),
+  always_on_top: z.boolean({ error: 'always_on_top must be true or false' }).optional(),
+  css: css.optional(),
+})
+
+export type WindowSettings = z.output<typeof windowUpdateSchema>

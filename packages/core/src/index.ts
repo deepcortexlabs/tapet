@@ -13,6 +13,7 @@ export {
   VIEW_TYPES,
   panelChangesSchema,
   panelCreateSchema,
+  windowUpdateSchema,
 } from './settings.ts'
 export type {
   Format,
@@ -23,6 +24,7 @@ export type {
   Retention,
   UpdateMode,
   ViewType,
+  WindowSettings,
 } from './settings.ts'
 export { createStore } from './store.ts'
 export type {
@@ -34,5 +36,12 @@ export type {
   Store,
   StoreOptions,
 } from './store.ts'
-export { VIEW_RULES, followsNewest, isKeyed, validateCreate, validateUpdate } from './validate.ts'
-export type { Issue, ValidationResult } from './validate.ts'
+export {
+  VIEW_RULES,
+  followsNewest,
+  isKeyed,
+  validateCreate,
+  validateUpdate,
+  validateWindowUpdate,
+} from './validate.ts'
+export type { Issue, ValidationResult, WindowValidationResult } from './validate.ts'

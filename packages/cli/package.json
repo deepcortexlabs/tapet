@@ -1,0 +1,19 @@
+{
+  "name": "@tapet/cli",
+  "private": true,
+  "bin": {
+    "tapet": "./src/main.ts"
+  },
+  "type": "module",
+  "dependencies": {
+    "@electron/get": "^5.1.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@tapet/core": "workspace:*",
+    "@tapet/protocol": "workspace:*",
+    "extract-zip": "^2.0.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tapet/app": "workspace:*"
+  }
+}

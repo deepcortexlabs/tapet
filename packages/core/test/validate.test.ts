@@ -5,6 +5,7 @@ import {
   followsNewest,
   validateCreate,
   validateUpdate,
+  validateWindowUpdate,
   type PanelSettings,
 } from '../src/index.ts'
 
@@ -182,5 +183,25 @@ describe('validateUpdate', () => {
     const { settings, issues } = validateUpdate(current, { view: 'custom' })
     expect(issues).toEqual([])
     expect(followsNewest(settings as PanelSettings)).toBe(false)
+  })
+})
+
+describe('validateWindowUpdate', () => {
+  it('requires a name on the first update', () => {
+    const { issues } = validateWindowUpdate({}, { width: 800 })
+    expect(issues.map((issue) => issue.path)).toEqual(['name'])
+  })
+
+  it('replaces the fields it is given and keeps the rest', () => {
+    const { settings } = validateWindowUpdate(
+      { name: 'logs', width: 800 },
+      { height: 600, css: 'x' },
+    )
+    expect(settings).toEqual({ name: 'logs', width: 800, height: 600, css: 'x' })
+  })
+
+  it('rejects unknown fields and windows smaller than 200 pixels', () => {
+    const { issues } = validateWindowUpdate({ name: 'logs' }, { width: 100, colour: 'red' })
+    expect(issues.map((issue) => issue.path).sort()).toEqual(['colour', 'width'])
   })
 })

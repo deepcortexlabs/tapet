@@ -7,10 +7,12 @@ import {
   UPDATE_MODES,
   panelChangesSchema,
   panelCreateSchema,
+  windowUpdateSchema,
   type Format,
   type PanelSettings,
   type UpdateMode,
   type ViewType,
+  type WindowSettings,
 } from './settings.ts'
 
 export interface Issue {
@@ -21,6 +23,33 @@ export interface Issue {
 export interface ValidationResult {
   settings?: PanelSettings
   issues: Issue[]
+}
+
+export interface WindowValidationResult {
+  settings?: WindowSettings
+  issues: Issue[]
+}
+
+// Validates window_update changes, which replace whole fields, against the current window settings.
+export function validateWindowUpdate(
+  current: WindowSettings,
+  changes: unknown,
+): WindowValidationResult {
+  const parsed = windowUpdateSchema.safeParse(changes)
+  if (!parsed.success) {
+    return { issues: toIssues(parsed.error) }
+  }
+
+  const settings = { ...current, ...withoutUndefined(parsed.data) }
+  if (!settings.name) {
+    return {
+      issues: [
+        { path: 'name', message: 'name is required on the first window_update: the window title' },
+      ],
+    }
+  }
+
+  return { settings, issues: [] }
 }
 
 interface ViewRule {

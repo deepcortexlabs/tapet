@@ -24,3 +24,11 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
+      # Ubuntu 24.04 restricts the user namespaces Electron's sandbox needs.
+      - if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # Linux runners have no screen, so Electron runs under a virtual display.
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm test:e2e
+      - if: runner.os != 'Linux'
+        run: pnpm test:e2e

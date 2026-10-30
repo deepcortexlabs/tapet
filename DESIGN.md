@@ -41,12 +41,18 @@ agent's shell:  cmd | tapet -c <addr> ──localhost HTTP──────┘
 - **One shared Electron app, one window per harness session, with sessions fully separated.** Electron was chosen over Tauri for two reasons: agents write the CSS, HTML and JS, so a single engine (Chromium) means it renders the same everywhere; and `capturePage()` gives exact screenshots.
 - **Main process:** kept tiny, because a crash there takes down every window. It creates each session's window and background process and hands out the background process's address. No session traffic passes through it.
 - **Per session:**
-  - an Electron `utilityProcess` that holds the session's state and channels, handles MCP, and makes the smart LLM calls (the API keys live only here);
+  - an Electron `utilityProcess` that holds the session's state and channels, serves the session's HTTP API, and makes the smart LLM calls (the API keys live only here);
   - a window that talks to it over a direct `MessagePort`;
   - a separate in-memory storage partition;
   - a random session token.
-- **`tapet mcp`:** the stdio MCP server each harness starts. It finds the app through a fixed local socket, or launches it (Electron's single-instance lock settles launch races). It checks versions, then relays MCP to the session's background process.
-- **Security:** localhost only, Origin checks, per-session tokens. Each channel token belongs to exactly one session.
+- **`tapet mcp`** is the MCP server each harness starts. Sessions are created on demand, so it can't simply relay MCP: before the first `window_update` there is no session process, and `docs_get` and `session_attach` must work without one. Instead it:
+  - finds the app through a fixed local socket, or launches it (Electron's single-instance lock settles launch races);
+  - checks the internal protocol version;
+  - asks main to create or attach a session;
+  - calls that session's background process through a small internal HTTP API: `GET /attach`, a long-lived stream that keeps the session live while it's open, and `POST /rpc`.
+- **Version mismatch:** only a change to the internal protocol version counts, not every release. When `tapet mcp` finds a running app speaking another version, tool calls fail with "quit tapet (Cmd-Q) and retry".
+- **Security:** localhost only, per-session tokens. Requests carrying an `Origin` header are refused, which keeps browsers out. Each channel token belongs to exactly one session.
+- **tapet's home** is `~/.tapet`, or `TAPET_HOME`, which isolates tests. It holds the control socket (`app.sock`, a named pipe on Windows), `logs/`, the downloaded `electron/`, `preferences.json`, and Electron's own data (`app-data/`). The single-instance lock is therefore per home.
 - **Electron binary:** tapet downloads it itself (with `@electron/get`, cached) rather than relying on the `electron` package's install script, which pnpm 10 skips. `tapet setup` downloads in the foreground. If Electron is missing, tool calls reply with the setup command and the agent runs it; downloading inside a tool call would hit MCP timeouts.
 - **Everything is HTTP,** so remote agents can come later without a redesign.
 
@@ -60,7 +66,9 @@ agent's shell:  cmd | tapet -c <addr> ──localhost HTTP──────┘
   - its panels freeze (they stay but stop updating) by default, or are removed if config says so;
   - tapet closes that session's channels, so pipes the agent left running die on their next write;
   - smart runs stop.
-- **Frozen panels** can't be removed by hand. The user asks an agent to remove them, and that agent has to attach to the session first. The user can always close the whole window.
+- **Ended-session indicator:** for now, an ended session's window title gets " (ended)". This is interim until open question #2 (status display) is answered.
+- **Frozen panels** can't be removed by hand. The user asks an agent to remove them, and that agent has to attach to the session first.
+- **Closing an ended session's window** asks the user to Discard or Keep the session, with a "Remember this choice" checkbox that is unchecked by default. A remembered answer is stored in `preferences.json`, a file the app writes; the config file stays the user's. Discarding frees the session's process, and reattaching fails after that. Quitting tapet never asks.
 - **Window lifetime:** windows stay open until the user quits the app, and the app keeps running until then. A relaunched app starts empty. Resuming is the agent's job: the instructions tell it to keep its own record, and `window_get` returns the current setup.
 - **Closed windows:** if the user closes a window, the session continues and keeps receiving data. Only an agent call that changes the window or its panels (`window_update`, `window_focus`, `panel_*`) reopens it; incoming data never does.
 - **One window per session.**
@@ -120,7 +128,7 @@ Other view settings:
 - **`follow`:** keeps the newest data in view. On by default for `append` panels whose view supports it (log, table, chart).
 - **Local interaction** (scroll, zoom, pan, hover, sort, search) is always on in built-in views and never reported to the agent.
 - **Same bridge for all views:** built-in views use the same bridge as `custom` views. A view receives a DOM element and the bridge. Through the bridge it gets the stored entries, then live changes: entries added, updated in place, or removed, by key.
-- **RTL:** built-in views support right-to-left text, and the agent sets the direction in CSS.
+- **RTL:** built-in views support right-to-left text, and the agent sets the direction in CSS. Log lines take their direction from their own text, so a Hebrew line reads right to left without any CSS.
 
 ### Presets
 
@@ -184,7 +192,7 @@ smart: {
 
 - **Only the agent arranges panels.** There is no manual layout, in v1 or later.
 - **Real CSS:**
-  - one global stylesheet (the `css` field of `window_update`) plus each panel's own `css`;
+  - one global stylesheet (the `css` field of `window_update`) plus each panel's own `css`, which applies only inside that panel (wrapped in `@scope ([data-panel="<id>"])`);
   - a documented, stable DOM: the root is `#tapet`, each panel is `[data-panel="<id>"]` in creation order, there are documented classes for the title bar, body and smart output, and theme tokens are CSS variables;
   - CSS is scoped per window.
 - **Window:** `name` is required. The agent sets size, position and always-on-top through `window_update`, and brings the window to the front with `window_focus`. By default, windows never take focus on their own (configurable).
@@ -275,11 +283,11 @@ Agents get the full-path form of these commands from tool results. MCP controls 
 ## Development
 
 - **Repo:** a pnpm workspace. The internal packages are private and get bundled into the one published package.
-- **Language and runtime:** TypeScript. The CLI and MCP server need Node 24+; the app uses Electron's bundled Node.
+- **Language and runtime:** TypeScript 6. (svelte-check doesn't support TypeScript 7 yet.) The CLI and MCP server need Node 24+; the app uses Electron's bundled Node.
 - **Tooling** (chosen for fitness and for how well AI agents work with it):
   - **electron-vite** builds the app: main process, preload, windows and background processes.
   - **esbuild** bundles the CLI and MCP server. Node won't strip TypeScript types inside `node_modules`, so these must ship as JS.
-  - **Svelte 5** for the window frame and the DOM-based views. The official Svelte MCP server's autofixer checks agent-written Svelte.
+  - **Svelte 5** for the window frame and the DOM-based views, type-checked with svelte-check. The official Svelte MCP server's autofixer checks agent-written Svelte.
   - **Vitest**, whose agent reporter prints only failures when it runs inside a coding agent.
   - **Playwright** `_electron` for end-to-end tests.
   - **Oxlint + Oxfmt** for linting and formatting.
@@ -313,8 +321,7 @@ Agents get the full-path form of these commands from tool results. MCP controls 
 1. **Daily cap:** does it reset at local midnight, or count a rolling 24 hours? Proposed behavior when hit: smart runs stop, the affected panels show "cap reached", and the agent sees it in its next tool result.
 2. **Status display:** should panel title bars show state (live, idle, frozen) and smart status (running, cap reached), and should the window show today's token use against the cap?
 3. **Evals:** which models? Proposed: Claude (Opus, Sonnet, Haiku), GPT and Gemini running the use cases above with synthetic data, possibly plus a small local model.
-4. **Version mismatch:** when `tapet mcp` finds an outdated app, does it refuse, or restart the app once it has no sessions?
-5. **Default config location:** used when `TAPET_CONFIG` isn't set.
+4. **Default config location:** used when `TAPET_CONFIG` isn't set. `~/.tapet/config.json` would fit tapet's home.
 
 ## Example
 

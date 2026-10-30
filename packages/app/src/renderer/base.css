@@ -1,0 +1,148 @@
+/* tapet's own styles. :where() keeps them at zero specificity, so agent CSS always wins. */
+:root {
+  color-scheme: light dark;
+  --tapet-bg: #f5f5f7;
+  --tapet-fg: #1d1d1f;
+  --tapet-muted: #6e6e73;
+  --tapet-border: #d2d2d7;
+  --tapet-panel-bg: #ffffff;
+  --tapet-accent: #0a66d8;
+  --tapet-font: system-ui, sans-serif;
+  --tapet-mono: ui-monospace, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tapet-bg: #1c1c1e;
+    --tapet-fg: #f2f2f7;
+    --tapet-muted: #98989d;
+    --tapet-border: #3a3a3c;
+    --tapet-panel-bg: #242426;
+    --tapet-accent: #4c9bff;
+  }
+}
+
+:where(html, body) {
+  margin: 0;
+  height: 100%;
+  background: var(--tapet-bg);
+  color: var(--tapet-fg);
+  font: 13px var(--tapet-font);
+}
+
+:where(#tapet) {
+  box-sizing: border-box;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+:where(.tapet-panel) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--tapet-panel-bg);
+  border: 1px solid var(--tapet-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:where(.tapet-title) {
+  padding: 6px 10px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--tapet-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:where(.tapet-body) {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+:where(.tapet-view) {
+  position: absolute;
+  inset: 0;
+}
+
+:where(.tapet-error) {
+  position: absolute;
+  inset: 0;
+  padding: 10px;
+  color: #d70015;
+  font-family: var(--tapet-mono);
+  white-space: pre-wrap;
+}
+
+:where(.tapet-empty) {
+  margin: auto;
+  color: var(--tapet-muted);
+}
+
+:where(.tapet-log) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+:where(.tapet-log-bar) {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--tapet-border);
+}
+
+:where(.tapet-log-search) {
+  flex: 0 1 240px;
+  font: inherit;
+  padding: 3px 6px;
+  border: 1px solid var(--tapet-border);
+  border-radius: 5px;
+  background: var(--tapet-bg);
+  color: var(--tapet-fg);
+}
+
+:where(.tapet-log-count) {
+  color: var(--tapet-muted);
+  font-size: 12px;
+}
+
+:where(.tapet-log-jump) {
+  margin-left: auto;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--tapet-border);
+  border-radius: 5px;
+  background: var(--tapet-panel-bg);
+  color: var(--tapet-accent);
+  cursor: pointer;
+}
+
+:where(.tapet-log-lines) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font: 12px/18px var(--tapet-mono);
+}
+
+:where(.tapet-log-content) {
+  position: relative;
+  min-width: 100%;
+}
+
+:where(.tapet-log-line) {
+  position: absolute;
+  left: 0;
+  height: 18px;
+  padding: 0 8px;
+  white-space: pre;
+  /* Each line takes its direction from its own text, so Hebrew or Arabic lines read right to left. */
+  unicode-bidi: plaintext;
+}

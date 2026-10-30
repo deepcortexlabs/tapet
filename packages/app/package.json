@@ -1,0 +1,28 @@
+{
+  "name": "@tapet/app",
+  "private": true,
+  "type": "module",
+  "main": "./out/main/index.js",
+  "exports": {
+    "./package.json": "./package.json",
+    "./session": "./src/session/session.ts"
+  },
+  "scripts": {
+    "build": "electron-vite build",
+    "dev": "electron-vite dev",
+    "check": "svelte-check --tsconfig ./tsconfig.web.json"
+  },
+  "dependencies": {
+    "@tapet/core": "workspace:*",
+    "@tapet/protocol": "workspace:*",
+    "ansi_up": "^6.0.6"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "electron": "45.2.0",
+    "electron-vite": "^6.0.0",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.7",
+    "vite": "^8.3.5"
+  }
+}
