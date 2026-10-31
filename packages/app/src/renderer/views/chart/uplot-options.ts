@@ -3,7 +3,7 @@
 import type { ChartSettings } from '@tapet/core'
 import uPlot from 'uplot'
 import { valueAt, type ChartData } from './chart-model.ts'
-import { withAlpha, type ChartTheme } from './theme.ts'
+import { withAlpha, type ChartTheme } from '../theme.ts'
 
 type ChartType = NonNullable<ChartSettings['type']>
 

@@ -1,6 +1,6 @@
 // Vega-Lite specs get tapet's theme as their base config; the spec's own config wins.
 import { mergePatch } from '@tapet/core'
-import type { ChartTheme } from './theme.ts'
+import type { ChartTheme } from '../theme.ts'
 
 // Sequential blue, light to dark. On a dark surface the ramp runs the other way, so values near
 // zero still recede toward the surface.

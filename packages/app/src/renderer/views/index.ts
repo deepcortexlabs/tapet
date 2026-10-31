@@ -7,7 +7,37 @@ import GaugeView from './gauge/GaugeView.svelte'
 import LogView from './log/LogView.svelte'
 import TableView from './table/TableView.svelte'
 
-function svelteView(component: Component<{ bridge: Bridge }>): ViewMount {
+type ViewComponent = Component<{ bridge: Bridge }>
+
+// Views whose libraries are large load with the first panel that uses them, rather than with
+// every window.
+function lazyView(load: () => Promise<{ default: ViewComponent }>): ViewMount {
+  return (target, bridge) => {
+    let mounted: ReturnType<typeof mount> | undefined
+    let destroyed = false
+    load()
+      .then(({ default: component }) => {
+        if (!destroyed) {
+          mounted = mount(component, { target, props: { bridge } })
+        }
+      })
+      .catch((error: unknown) => {
+        bridge.reportError(
+          `couldn't load the view: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      })
+    return {
+      destroy: () => {
+        destroyed = true
+        if (mounted) {
+          void unmount(mounted)
+        }
+      },
+    }
+  }
+}
+
+function svelteView(component: ViewComponent): ViewMount {
   return (target, bridge) => {
     const mounted = mount(component, { target, props: { bridge } })
     return {
@@ -22,6 +52,7 @@ const VIEWS: Partial<Record<ViewType, ViewMount>> = {
   log: svelteView(LogView),
   table: svelteView(TableView),
   chart: svelteView(ChartView),
+  graph: lazyView(() => import('./graph/GraphView.svelte')),
   document: svelteView(DocumentView),
   gauge: svelteView(GaugeView),
 }

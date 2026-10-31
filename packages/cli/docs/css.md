@@ -21,6 +21,7 @@ Each view's own classes, inside `.tapet-view`:
 - **log:** `.tapet-log-search` (the search box), `.tapet-log-lines` (the scrolling area), `.tapet-log-line` (one line).
 - **table:** `.tapet-table-header` (the header row), `.tapet-table-heading` (one column's header), `.tapet-table-row` (one row), `.tapet-table-cell` (one cell). Column widths are the `grid-template-columns` of `.tapet-table-header, .tapet-table-row`. Rows have a fixed height of 24 px, so change their content, not their height.
 - **chart:** `.tapet-chart` (with `data-type` set to the uPlot chart type), `.tapet-chart-tooltip` (the readout when hovering), uPlot's own `.u-legend` and `.u-over`. Vega-Lite charts are SVG with Vega's classes, e.g. `.mark-rect`.
+- **graph:** `.tapet-graph-canvas` (the graph, drawn with WebGL), `.tapet-graph-labels` (the labels, drawn on their own canvas), `.tapet-graph-tooltip` and `.tapet-graph-count`. Node colors come from the series variables below.
 - **document:** `.tapet-document` (the scrolling area), `.tapet-document-item` (one document), `.tapet-document-markdown`, `.tapet-document-text`, `.tapet-document-image`, `.tapet-mermaid` (a diagram). HTML documents style themselves: your CSS doesn't reach inside them.
 - **gauge:** `.tapet-gauge` (with `data-style` set to number, dial or bar), `.tapet-gauge-value`, `.tapet-gauge-unit`, `.tapet-gauge-dial`, `.tapet-gauge-bar`, `.tapet-gauge-bar-fill`.
 

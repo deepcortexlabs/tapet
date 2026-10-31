@@ -19,6 +19,7 @@ What people use it for:
 - **Tables:** `jq` or CSV output that the user can sort, updated in place as rows change.
 - **Documents:** reports in Markdown, with highlighted code, math and Mermaid diagrams. Also sanitized HTML, plain text and images.
 - **Charts:** time series with zoom and a readout on hover, or any Vega-Lite spec.
+- **Graphs:** dependency trees, call graphs and any edge list, up to a million nodes.
 - **Gauges:** the latest value of a metric, as a number, dial or bar.
 - **Layout in plain CSS:** the agent arranges panels with CSS it already knows. It checks the result with a screenshot.
 
@@ -47,7 +48,7 @@ agent's shell:   <command> | <pipe> ──────▶ a panel in that window
 | `document` | available | Markdown (code, math, Mermaid), HTML, text or an image |
 | `gauge`    | available | the latest value as a number, dial or bar              |
 | `chart`    | available | time series (uPlot) and any Vega-Lite spec             |
-| `graph`    | coming    | nodes and edges                                        |
+| `graph`    | available | nodes and edges                                        |
 | `map`      | coming    | GeoJSON features on a map                              |
 | `custom`   | coming    | the agent's own code in a sandbox                      |
 
@@ -156,6 +157,24 @@ while true; do curl -s -o /dev/null -w '{"connect": %{time_connect}, "total": %{
 ```
 
 Without `chart.x`, each point is placed at the time it arrived. For anything beyond time series, `chart: { engine: 'vega-lite', spec }` takes a full Vega-Lite spec.
+
+**"Show me which services call which."**
+
+```js
+panel_create({
+  id: 'calls',
+  title: 'Service calls',
+  format: 'ndjson',
+  update: 'append',
+  view: 'graph',
+})
+```
+
+```bash
+jq -c '{source: .caller, target: .callee}' traces.ndjson | <pipe>
+```
+
+The nodes come from the edges. A force layout on the GPU handles a million of them; `graph: { layout: 'hierarchical' }` draws dependencies in layers instead.
 
 **"Write up the incident and show it to me."**
 

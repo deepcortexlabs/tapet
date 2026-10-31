@@ -5,7 +5,7 @@
   import 'uplot/dist/uPlot.min.css'
   import type { Bridge } from '../../bridge.ts'
   import { chartData, type ChartResult } from './chart-model.ts'
-  import { onThemeChange, readTheme } from './theme.ts'
+  import { onThemeChange, readTheme } from '../theme.ts'
   import { plotOptions } from './uplot-options.ts'
 
   let props: { bridge: Bridge } = $props()

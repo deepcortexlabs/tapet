@@ -636,3 +636,69 @@
   height: 2px;
   border-radius: 1px;
 }
+
+/* graph */
+
+:where(.tapet-graph) {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+:where(.tapet-graph-canvas, .tapet-graph-labels) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+:where(.tapet-graph-labels) {
+  pointer-events: none;
+}
+
+:where(.tapet-graph-count) {
+  position: absolute;
+  left: 10px;
+  bottom: 6px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--tapet-muted);
+  pointer-events: none;
+}
+
+:where(.tapet-graph-message) {
+  position: absolute;
+  inset: 40% 16px auto;
+  margin: 0;
+  text-align: center;
+}
+
+:where(.tapet-graph-error) {
+  color: #d70015;
+  font-family: var(--tapet-mono);
+}
+
+:where(.tapet-graph-tooltip) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  max-width: 320px;
+  pointer-events: none;
+  padding: 6px 8px;
+  border: 1px solid var(--tapet-border);
+  border-radius: 6px;
+  background: var(--tapet-panel-bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+:where(.tapet-graph-tooltip strong) {
+  display: block;
+  margin-bottom: 2px;
+}
+
+:where(.tapet-graph-key) {
+  color: var(--tapet-muted);
+}

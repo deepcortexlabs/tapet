@@ -183,3 +183,32 @@ test('chart: uPlot series with a legend and a readout, and a Vega-Lite spec', as
   expect(`${text(updated)} ${text(later)}`).toContain('no data named \\"tapet\\"')
   await tapet.call('panel_remove', { id: 'latency' })
 })
+
+test('graph: nodes and edges, including nodes only edges mention, in both layouts', async () => {
+  const send = await createPanel({
+    id: 'deps',
+    title: 'Dependencies',
+    format: 'ndjson',
+    update: 'append',
+    view: 'graph',
+    graph: { label: 'name' },
+  })
+  const panel = page.locator('[data-panel=deps]')
+  await expect(panel.locator('.tapet-empty')).toHaveText('No data yet')
+  const empty = await screenshot('deps')
+
+  const items = [
+    { id: 'app', name: 'App' },
+    { source: 'app', target: 'core' },
+    { source: 'app', target: 'cli' },
+    { source: 'cli', target: 'core' },
+  ]
+  send(`${items.map((item) => JSON.stringify(item)).join('\n')}\n`)
+  await expect(panel.locator('.tapet-graph-count')).toHaveText('3 nodes · 3 edges')
+  await expect(panel.locator('.tapet-graph-canvas canvas')).toHaveCount(1)
+  expect((await screenshot('deps')).length).toBeGreaterThan(empty.length)
+
+  await tapet.call('panel_update', { id: 'deps', graph: { label: 'name', layout: 'hierarchical' } })
+  await expect(panel.locator('.tapet-graph-count')).toHaveText('3 nodes · 3 edges')
+  await tapet.call('panel_remove', { id: 'deps' })
+})

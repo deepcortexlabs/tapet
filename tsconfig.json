@@ -15,5 +15,5 @@
   },
   "include": ["packages/*/src", "packages/*/test", "e2e", "bench", "playwright.config.ts"],
   // Code that runs in the window (renderer and preload) is checked by svelte-check (packages/app/tsconfig.web.json).
-  "exclude": ["packages/app/src/renderer", "packages/app/src/preload"]
+  "exclude": ["packages/app/src/renderer", "packages/app/src/preload", "bench/graph/page.ts"]
 }

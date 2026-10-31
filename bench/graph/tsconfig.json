@@ -1,0 +1,10 @@
+{
+  // The benchmark page runs in a window, so it needs the DOM's types.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": []
+  },
+  "include": ["page.ts"],
+  "exclude": []
+}

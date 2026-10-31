@@ -197,7 +197,7 @@ export function createTapetServer(options: ServerOptions = {}): Server {
     {
       name: 'panel_create',
       description:
-        'Creates a panel. Pick a preset (log, timeseries, table, graph, document, gauge, map) and override any setting, or set format, update and view yourself. id is a simple name (letters, digits, - and _), also used in CSS as [data-panel=<id>]; title is required. Returns pipe: run `<your command> | <pipe>` in your shell to stream data into the panel. format, header, update and key are fixed once created. Views available in this version: log, table, chart, document, gauge. Settings for a view go in an object named after it, e.g. gauge: { value: "cpu", max: 100 } (docs_get("views")). Add smart: { prompt, every } to have an LLM summarize new data in the panel (docs_get("smart")). See docs_get("panels").',
+        'Creates a panel. Pick a preset (log, timeseries, table, graph, document, gauge, map) and override any setting, or set format, update and view yourself. id is a simple name (letters, digits, - and _), also used in CSS as [data-panel=<id>]; title is required. Returns pipe: run `<your command> | <pipe>` in your shell to stream data into the panel. format, header, update and key are fixed once created. Views available in this version: log, table, chart, graph, document, gauge. Settings for a view go in an object named after it, e.g. gauge: { value: "cpu", max: 100 } (docs_get("views")). Add smart: { prompt, every } to have an LLM summarize new data in the panel (docs_get("smart")). See docs_get("panels").',
       schema: panelCreateSchema,
       async run(args) {
         const current = requireSession()

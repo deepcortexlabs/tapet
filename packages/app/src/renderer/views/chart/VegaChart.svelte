@@ -4,7 +4,7 @@
   import { expressionInterpreter } from 'vega-interpreter'
   import { compile, type TopLevelSpec } from 'vega-lite'
   import type { Bridge } from '../../bridge.ts'
-  import { onThemeChange, readTheme } from './theme.ts'
+  import { onThemeChange, readTheme } from '../theme.ts'
   import { fillsPanel, themedSpec, toDatum } from './vega-options.ts'
 
   let props: { bridge: Bridge } = $props()

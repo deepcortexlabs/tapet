@@ -37,7 +37,7 @@ The official list of what tapet does today.
 
 - **Lifecycle:** `panel_create` returns a pipe command. `panel_update` replaces the settings it's given, where `null` clears an optional one. `panel_remove` closes the panel's pipes.
 - **Ids and titles:** ids are simple names (letters, digits, `-` and `_`, up to 64), used in CSS as `[data-panel=<id>]`. The title is required and shows in the title bar.
-- **Presets:** `log`, `table`, `timeseries` (chart), `document` and `gauge` fill in format, update and view. Explicit settings win.
+- **Presets:** `log`, `table`, `timeseries` (chart), `graph`, `document` and `gauge` fill in format, update and view. Explicit settings win.
 - **Fixed settings:** `format`, `header`, `update` and `key` can't change after creation.
 - **View settings:** an object named after the view, e.g. `gauge: { max: 100 }`. Only the current view's object is allowed, and switching views drops the previous one.
 - **Retention:** `all`, `{ last: <items> }` or `{ seconds: <seconds> }`. It doesn't apply to `replace` panels.
@@ -58,6 +58,7 @@ The official list of what tapet does today.
 - **log:** one line per item, with terminal colors, case-insensitive search with a match count, and follow.
 - **table:** columns from the CSV header, the fields in order of first appearance, or `table.columns`. Virtual scrolling, sorting by clicking a header (numbers by value), rows updated in place, and objects shown as JSON.
 - **chart:** uPlot time series (`chart.y` up to 8 fields, `x` or arrival time, `x_type`, `series` split by a field, `type` line, area, bar or points) with zoom, a legend and a hover readout. Or any Vega-Lite `spec`, fed through its `tapet` dataset.
+- **graph:** nodes and edges from items with an `id` or with `source` and `target`; an edge list alone works. A GPU force layout that handles a million nodes, or a `hierarchical` one; `label`, `color` and `size` from fields; labels that don't overlap, details on hover, zoom, pan and drag.
 - **document:** `document.content` is `markdown` (highlighted code, KaTeX math, Mermaid diagrams), `html` (sanitized, no scripts, its styles stay inside it), `text` or `image`. `replace` shows the latest document; `append` stacks them.
 - **gauge:** the latest value as a number, dial or bar, with `min`, `max`, `unit` and color `thresholds`. `gauge.value` picks the field when items are objects.
 - **Right-to-left text:** log lines, table cells, and markdown and text documents read right to left when their text does.

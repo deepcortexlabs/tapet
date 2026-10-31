@@ -1,6 +1,6 @@
 # Views
 
-Views available in this version: **log**, **table**, **chart**, **document** and **gauge**. Coming next: graph, map and custom. Any panel can also carry a smart output (see `smart`).
+Views available in this version: **log**, **table**, **chart**, **graph**, **document** and **gauge**. Coming next: map and custom. Any panel can also carry a smart output (see `smart`).
 
 A view's own settings go in an object named after it, e.g. `{ view: "gauge", gauge: { value: "cpu", style: "dial", max: 100 } }`. They can change at any time with `panel_update`; sending the object replaces it whole. When `panel_update` switches to another view, the previous view's object is dropped.
 
@@ -58,6 +58,25 @@ chart: { engine: "vega-lite", spec: { data: { name: "tapet" }, mark: "bar", enco
 - A spec without its own `width` and `height` fills the panel.
 - The spec's own `config` overrides tapet's theme.
 - Data from URLs isn't loaded, because the window doesn't use the network.
+
+## graph
+
+```
+panel_create({ id: "calls", title: "Service calls", preset: "graph", graph: { label: "name", color: "team" } })
+```
+
+- Accepts `format: "ndjson"` or `"csv"` with a header, and `update: "append"`, `"upsert"` or `"patch"`.
+- Items with `source` and `target` fields are edges; the others are nodes, identified by `id`. Nodes that edges mention but no item defines are created from the edges, so a plain edge list is a graph.
+- The `graph` preset upserts by `id`, so every item needs an `id`, edges included. For a plain edge list, add `update: "append"`.
+- A later item for a node replaces the earlier one.
+- `graph.id`, `graph.source`, `graph.target`: other names for those fields, e.g. `{ source: "from", target: "to" }`.
+- `graph.label`: the field shown as a node's label. Defaults to its id.
+- `graph.color`: colors nodes by this field's value, one series color per value (`--tapet-series-1` to `8`, see `css`). Further values, and nodes without one, are gray.
+- `graph.size`: sizes nodes by this field's number, so their areas follow the values.
+- `graph.layout`: `force` (the default) runs on the GPU and handles a million nodes. `hierarchical` lays out dependencies and pipelines in layers, top to bottom, for up to 3,000 nodes.
+- Labels show for the largest and best-connected nodes that fit without overlapping. Hovering a node shows its fields.
+- The user can zoom, pan and drag nodes. Until they do, the view keeps the whole graph in sight.
+- The panel shows how many nodes and edges it has.
 
 ## document
 

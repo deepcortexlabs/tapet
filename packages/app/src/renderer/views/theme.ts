@@ -1,4 +1,5 @@
-// Chart colors and fonts come from the theme's CSS variables, so agent CSS can change them.
+// Colors and fonts for charts and graphs come from the theme's CSS variables, so agent CSS can
+// change them.
 import { MAX_SERIES } from '@tapet/core'
 
 export interface ChartTheme {
@@ -38,20 +39,27 @@ export function onThemeChange(callback: () => void): () => void {
 
 const canvas = document.createElement('canvas').getContext('2d')
 
-// Any CSS color with transparency, e.g. for an area's wash. A canvas reads the color, so names,
-// rgb() and hsl() all work.
-export function withAlpha(color: string, alpha: number): string {
+// Any CSS color as red, green, blue and alpha from 0 to 1. A canvas reads the color, so names,
+// rgb() and hsl() all work; the canvas writes it back as #rrggbb, or as rgba() when transparent.
+export function toRgba(color: string): [number, number, number, number] {
   if (!canvas) {
-    return color
+    return [0, 0, 0, 1]
   }
 
   canvas.fillStyle = '#000000'
   canvas.fillStyle = color
   const normalized = String(canvas.fillStyle)
-  if (!normalized.startsWith('#')) {
-    return normalized
+  if (normalized.startsWith('#')) {
+    const rgb = Number.parseInt(normalized.slice(1), 16)
+    return [(rgb >> 16) / 255, ((rgb >> 8) & 255) / 255, (rgb & 255) / 255, 1]
   }
 
-  const rgb = Number.parseInt(normalized.slice(1), 16)
-  return `rgba(${rgb >> 16}, ${(rgb >> 8) & 255}, ${rgb & 255}, ${alpha})`
+  const [red = 0, green = 0, blue = 0, alpha = 1] = (normalized.match(/[\d.]+/g) ?? []).map(Number)
+  return [red / 255, green / 255, blue / 255, alpha]
+}
+
+// Any CSS color with transparency, e.g. for an area's wash.
+export function withAlpha(color: string, alpha: number): string {
+  const [red, green, blue] = toRgba(color).map((channel) => Math.round(channel * 255))
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
 }
