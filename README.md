@@ -1,6 +1,6 @@
-# tapet
+<h1><img alt="tapet" src="assets/logo.png" width="320" /></h1>
 
-tapet (Hebrew טפט, "wallpaper") is a display that AI agents direct over MCP to show things to their user.
+tapet is a display that AI agents direct over MCP to show things to their user.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/views-dark.png" />
