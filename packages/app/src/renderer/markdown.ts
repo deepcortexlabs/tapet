@@ -6,7 +6,6 @@ import 'katex/dist/katex.min.css'
 import { Marked } from 'marked'
 import { markedHighlight } from 'marked-highlight'
 import markedKatex from 'marked-katex-extension'
-import mermaid from 'mermaid'
 
 const marked = new Marked(
   markedHighlight({
@@ -26,7 +25,6 @@ const MERMAID_CONFIG = {
   securityLevel: 'strict',
   suppressErrorRendering: true,
 } as const
-mermaid.initialize(MERMAID_CONFIG)
 
 let diagrams = 0
 
@@ -39,10 +37,17 @@ export function renderMarkdown(text: string): string {
 // gets the error under it. Returns the errors.
 export async function renderDiagrams(root: HTMLElement): Promise<string[]> {
   const errors: string[] = []
+  const blocks = root.querySelectorAll('pre > code.language-mermaid')
+  if (blocks.length === 0) {
+    return errors
+  }
+
+  // Mermaid is large, so it loads with the first diagram rather than with every window.
+  const { default: mermaid } = await import('mermaid')
   // Diagrams take the theme the window has when they're drawn.
   const dark = matchMedia('(prefers-color-scheme: dark)').matches
   mermaid.initialize({ ...MERMAID_CONFIG, theme: dark ? 'dark' : 'default' })
-  for (const code of root.querySelectorAll('pre > code.language-mermaid')) {
+  for (const code of blocks) {
     const block = code.parentElement
     if (!block) {
       continue
