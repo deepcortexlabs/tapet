@@ -16,7 +16,15 @@ You arrange and style the window with real CSS. The user can't rearrange anythin
       div.tapet-view                    the view
 ```
 
-The log view inside `.tapet-view` uses `.tapet-log-search` (the search box), `.tapet-log-lines` (the scrolling area) and `.tapet-log-line` (one line).
+Each view's own classes, inside `.tapet-view`:
+
+- **log:** `.tapet-log-search` (the search box), `.tapet-log-lines` (the scrolling area), `.tapet-log-line` (one line).
+- **table:** `.tapet-table-header` (the header row), `.tapet-table-heading` (one column's header), `.tapet-table-row` (one row), `.tapet-table-cell` (one cell). Column widths are the `grid-template-columns` of `.tapet-table-header, .tapet-table-row`. Rows have a fixed height of 24 px, so change their content, not their height.
+- **chart:** `.tapet-chart` (with `data-type` set to the uPlot chart type), `.tapet-chart-tooltip` (the readout when hovering), uPlot's own `.u-legend` and `.u-over`. Vega-Lite charts are SVG with Vega's classes, e.g. `.mark-rect`.
+- **document:** `.tapet-document` (the scrolling area), `.tapet-document-item` (one document), `.tapet-document-markdown`, `.tapet-document-text`, `.tapet-document-image`, `.tapet-mermaid` (a diagram). HTML documents style themselves: your CSS doesn't reach inside them.
+- **gauge:** `.tapet-gauge` (with `data-style` set to number, dial or bar), `.tapet-gauge-value`, `.tapet-gauge-unit`, `.tapet-gauge-dial`, `.tapet-gauge-bar`, `.tapet-gauge-bar-fill`.
+
+`.tapet-empty` is the message a view shows before data arrives.
 
 ## Where CSS goes
 
@@ -44,6 +52,8 @@ Hide a title bar with `.tapet-title { display: none }` in that panel's `css`.
 The theme follows the user's light or dark mode. Use these variables to fit in, or override them:
 
 `--tapet-bg`, `--tapet-fg`, `--tapet-muted`, `--tapet-border`, `--tapet-panel-bg`, `--tapet-accent`, `--tapet-font`, `--tapet-mono`.
+
+Charts also use `--tapet-grid` (gridlines), `--tapet-axis` (baselines) and `--tapet-series-1` to `--tapet-series-8` (series colors, assigned in that order). The default order keeps neighboring series distinct for color-blind readers. To recolor one chart, set them in its panel's `css`, e.g. `:scope { --tapet-series-1: #e34948 }`.
 
 ## Checking your layout
 

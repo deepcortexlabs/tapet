@@ -18,6 +18,7 @@ What people use it for:
 - **Live logs:** `tail -f`, test runners and dev servers, with terminal colors and search. An optional LLM (the _smart trait_) keeps a rolling summary, e.g. "which tests fail and why".
 - **Tables:** `jq` or CSV output that the user can sort, updated in place as rows change.
 - **Documents:** reports in Markdown, with highlighted code, math and Mermaid diagrams. Also sanitized HTML, plain text and images.
+- **Charts:** time series with zoom and a readout on hover, or any Vega-Lite spec.
 - **Gauges:** the latest value of a metric, as a number, dial or bar.
 - **Layout in plain CSS:** the agent arranges panels with CSS it already knows. It checks the result with a screenshot.
 
@@ -45,7 +46,7 @@ agent's shell:   <command> | <pipe> ──────▶ a panel in that window
 | `table`    | available | rows, with sorting and virtual scrolling               |
 | `document` | available | Markdown (code, math, Mermaid), HTML, text or an image |
 | `gauge`    | available | the latest value as a number, dial or bar              |
-| `chart`    | coming    | time series (uPlot) and any Vega-Lite spec             |
+| `chart`    | available | time series (uPlot) and any Vega-Lite spec             |
 | `graph`    | coming    | nodes and edges                                        |
 | `map`      | coming    | GeoJSON features on a map                              |
 | `custom`   | coming    | the agent's own code in a sandbox                      |
@@ -138,6 +139,23 @@ jq -c 'select(.p99_ms > 500)' stats.ndjson | <pipe>
 ```
 
 The user sorts by clicking a column header. With `update: 'upsert'` and a `key`, rows update in place, e.g. one row per endpoint.
+
+**"Graph the site's response time while I deploy."**
+
+```js
+panel_create({
+  id: 'latency',
+  title: 'Response time (s)',
+  preset: 'timeseries',
+  chart: { y: ['connect', 'total'] },
+})
+```
+
+```bash
+while true; do curl -s -o /dev/null -w '{"connect": %{time_connect}, "total": %{time_total}}\n' https://example.com; sleep 1; done | <pipe>
+```
+
+Without `chart.x`, each point is placed at the time it arrived. For anything beyond time series, `chart: { engine: 'vega-lite', spec }` takes a full Vega-Lite spec.
 
 **"Write up the incident and show it to me."**
 

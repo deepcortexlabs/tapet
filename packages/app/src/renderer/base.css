@@ -9,6 +9,18 @@
   --tapet-accent: #0a66d8;
   --tapet-font: system-ui, sans-serif;
   --tapet-mono: ui-monospace, Menlo, Consolas, monospace;
+  /* Charts: gridlines and baselines, and one color per series in a fixed order. The order keeps
+     neighboring series apart for color-blind readers; validated on the light and dark panels. */
+  --tapet-grid: #ebebf0;
+  --tapet-axis: #d2d2d7;
+  --tapet-series-1: #2a78d6;
+  --tapet-series-2: #eb6834;
+  --tapet-series-3: #1baf7a;
+  --tapet-series-4: #eda100;
+  --tapet-series-5: #e87ba4;
+  --tapet-series-6: #008300;
+  --tapet-series-7: #6250d6;
+  --tapet-series-8: #e34948;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,6 +31,16 @@
     --tapet-border: #3a3a3c;
     --tapet-panel-bg: #242426;
     --tapet-accent: #4c9bff;
+    --tapet-grid: #303032;
+    --tapet-axis: #48484a;
+    --tapet-series-1: #3987e5;
+    --tapet-series-2: #d95926;
+    --tapet-series-3: #199e70;
+    --tapet-series-4: #c98500;
+    --tapet-series-5: #d55181;
+    --tapet-series-6: #008300;
+    --tapet-series-7: #9085e9;
+    --tapet-series-8: #e66767;
   }
 }
 
@@ -443,7 +465,6 @@
   font-size: min(40cqh, 20cqw);
   font-weight: 600;
   line-height: 1;
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -479,7 +500,6 @@
 :where(.tapet-gauge-dial text) {
   fill: var(--tapet-fg);
   text-anchor: middle;
-  font-variant-numeric: tabular-nums;
 }
 
 :where(.tapet-gauge-dial-value) {
@@ -521,4 +541,98 @@
   color: #d70015;
   font-family: var(--tapet-mono);
   text-align: center;
+}
+
+/* chart. uPlot's own classes are overridden with one class of specificity, which agent CSS can
+   still beat. */
+
+:where(.tapet-chart) {
+  position: relative;
+  height: 100%;
+}
+
+:where(.tapet-chart-plot) {
+  position: absolute;
+  inset: 8px 8px 4px 4px;
+}
+
+:where(.tapet-chart-message) {
+  position: absolute;
+  inset: 40% 16px auto;
+  text-align: center;
+}
+
+:where(.tapet-chart-error) {
+  color: #d70015;
+  font-family: var(--tapet-mono);
+}
+
+:where(.tapet-chart) .uplot {
+  font-family: var(--tapet-font);
+  width: auto;
+}
+
+:where(.tapet-chart) .u-legend {
+  font-size: 12px;
+  color: var(--tapet-muted);
+}
+
+/* Legend keys mirror the marks: a short line for lines, a square for areas. */
+:where(.tapet-chart) .u-legend .u-marker {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  vertical-align: middle;
+}
+
+:where(.tapet-chart[data-type='area']) .u-legend .u-marker {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+:where(.tapet-chart) .u-hz .u-cursor-x {
+  border-right: 1px solid var(--tapet-axis);
+}
+
+:where(.tapet-chart) .u-select {
+  background: color-mix(in srgb, var(--tapet-accent) 12%, transparent);
+}
+
+:where(.tapet-chart-tooltip) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+  padding: 6px 8px;
+  border: 1px solid var(--tapet-border);
+  border-radius: 6px;
+  background: var(--tapet-panel-bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+:where(.tapet-chart-tooltip-x) {
+  margin-bottom: 2px;
+  color: var(--tapet-muted);
+}
+
+:where(.tapet-chart-tooltip-row) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tapet-muted);
+}
+
+:where(.tapet-chart-tooltip-row strong) {
+  color: var(--tapet-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.tapet-chart-key) {
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
 }

@@ -14,7 +14,12 @@ import {
   type ViewType,
   type WindowSettings,
 } from './settings.ts'
-import { VIEW_SETTINGS_NAMES, type ChartSettings, type GaugeSettings } from './view-settings.ts'
+import {
+  MAX_SERIES,
+  VIEW_SETTINGS_NAMES,
+  type ChartSettings,
+  type GaugeSettings,
+} from './view-settings.ts'
 
 export interface Issue {
   path: string
@@ -318,6 +323,22 @@ function chartIssues(chart: ChartSettings): Issue[] {
     issues.push({
       path: 'chart.series',
       message: 'chart.series splits one y field into a line per value, so y must be a single field',
+    })
+  }
+
+  if (Array.isArray(chart.y) && chart.y.length > MAX_SERIES) {
+    issues.push({
+      path: 'chart.y',
+      message: `chart.y can name at most ${MAX_SERIES} fields, one per series color`,
+    })
+  }
+
+  const several = chart.series !== undefined || (Array.isArray(chart.y) && chart.y.length > 1)
+  if (chart.type === 'bar' && several) {
+    issues.push({
+      path: 'chart.type',
+      message:
+        'the bar type draws a single series; for grouped or stacked bars, use engine "vega-lite"',
     })
   }
 

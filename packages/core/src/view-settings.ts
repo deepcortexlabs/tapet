@@ -10,6 +10,8 @@ export const CHART_TYPES = ['line', 'area', 'bar', 'points'] as const
 export const X_TYPES = ['time', 'number'] as const
 export const GRAPH_LAYOUTS = ['force', 'hierarchical'] as const
 export const CUSTOM_SURFACES = ['dom', 'canvas2d', 'webgl'] as const
+// A chart draws at most this many series, one per color of the theme's series palette.
+export const MAX_SERIES = 8
 
 function field(path: string, example: string) {
   const message = `${path} must be the name of a field, e.g. "${example}"`

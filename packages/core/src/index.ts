@@ -34,6 +34,7 @@ export {
   DOCUMENT_CONTENTS,
   GAUGE_STYLES,
   GRAPH_LAYOUTS,
+  MAX_SERIES,
   VIEW_SETTINGS_NAMES,
   X_TYPES,
 } from './view-settings.ts'

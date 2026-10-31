@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { startTapet, type Tapet } from './tapet.ts'
+import { startTapet, text, type Tapet } from './tapet.ts'
 
 let tapet: Tapet
 let page: Page
@@ -135,4 +135,51 @@ test('gauge: the latest value, thresholds, styles, and data it cannot show', asy
   expect(notices).toEqual([expect.stringContaining('set gauge.value')])
   await tapet.call('panel_remove', { id: 'cpu' })
   await tapet.call('panel_remove', { id: 'mem' })
+})
+
+test('chart: uPlot series with a legend and a readout, and a Vega-Lite spec', async () => {
+  const send = await createPanel({
+    id: 'latency',
+    title: 'Latency',
+    preset: 'timeseries',
+    chart: { x: 'i', y: ['p50', 'p99'] },
+  })
+  const panel = page.locator('[data-panel=latency]')
+  await expect(panel.locator('.tapet-empty')).toHaveText('No data yet')
+  const empty = await screenshot('latency')
+
+  const points = Array.from({ length: 20 }, (_, i) => ({ i, p50: 10 + (i % 5), p99: 40 + (i % 7) }))
+  send(`${points.map((point) => JSON.stringify(point)).join('\n')}\n`)
+  await expect(panel.locator('.u-legend .u-label')).toHaveText(['p50', 'p99'])
+  expect((await screenshot('latency')).length).toBeGreaterThan(empty.length)
+  await panel.locator('.u-over').hover()
+  await expect(panel.locator('.tapet-chart-tooltip-row')).toHaveCount(2)
+
+  // Series colors are theme variables, so the panel's CSS can change them.
+  await tapet.call('panel_update', {
+    id: 'latency',
+    css: ':scope { --tapet-series-1: rgb(255, 0, 0) }',
+  })
+  await expect(panel.locator('.u-legend .u-marker').first()).toHaveCSS(
+    'background-color',
+    'rgb(255, 0, 0)',
+  )
+
+  const bars = {
+    data: { name: 'tapet' },
+    mark: 'bar',
+    encoding: { x: { field: 'i', type: 'ordinal' }, y: { field: 'p50', type: 'quantitative' } },
+  }
+  await tapet.call('panel_update', { id: 'latency', chart: { engine: 'vega-lite', spec: bars } })
+  await expect(panel.locator('.mark-rect path')).toHaveCount(20)
+
+  // A spec that doesn't read the panel's data gets a notice, with this result or the next one.
+  const unfed = { data: { values: [{ a: 1 }] }, mark: 'point' }
+  const updated = await tapet.call('panel_update', {
+    id: 'latency',
+    chart: { engine: 'vega-lite', spec: unfed },
+  })
+  const later = await tapet.call('window_get')
+  expect(`${text(updated)} ${text(later)}`).toContain('no data named \\"tapet\\"')
+  await tapet.call('panel_remove', { id: 'latency' })
 })

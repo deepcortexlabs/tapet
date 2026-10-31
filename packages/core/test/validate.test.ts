@@ -245,6 +245,16 @@ describe('view settings', () => {
       ),
     ).toContain('y must be a single field')
     expect(
+      messageAt(
+        { ...base, preset: 'timeseries', chart: { y: ['a', 'b'], type: 'bar' } },
+        'chart.type',
+      ),
+    ).toContain('use engine "vega-lite"')
+    const nine = Array.from({ length: 9 }, (_, index) => `f${index}`)
+    expect(messageAt({ ...base, preset: 'timeseries', chart: { y: nine } }, 'chart.y')).toContain(
+      'at most 8 fields',
+    )
+    expect(
       messageAt({ ...base, preset: 'gauge', gauge: { value: 'cpu' } }, 'gauge.value'),
     ).toContain('with format lines, each line is the value')
   })

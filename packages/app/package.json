@@ -26,7 +26,11 @@
     "marked": "^18.1.2",
     "marked-highlight": "^2.2.4",
     "marked-katex-extension": "^5.1.13",
-    "mermaid": "^12.2.0"
+    "mermaid": "^12.2.0",
+    "uplot": "^1.6.32",
+    "vega": "^6.4.0",
+    "vega-interpreter": "^2.3.2",
+    "vega-lite": "^6.5.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
