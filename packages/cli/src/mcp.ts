@@ -22,7 +22,7 @@ import {
   type SessionConfig,
 } from '@tapet/protocol'
 import { requestSession } from './app.ts'
-import { TapetError, commandLine, selfCommand } from './paths.ts'
+import { TapetError, commandLine, pipeCommand, selfCommand } from './paths.ts'
 import { attachSession, type AttachedSession } from './session-client.ts'
 
 // Where sessions come from: the running app, or an in-process stand-in in tests.
@@ -135,7 +135,7 @@ export function createTapetServer(options: ServerOptions = {}): Server {
     {
       name: 'window_update',
       description:
-        'Opens your tapet window, or changes it. The first call must include name (the window title). Fields you send replace those fields: name, width, height, x, y, always_on_top, and css (one global stylesheet, e.g. for the layout). Returns your tapet session id; record it so you can reconnect with session_attach.',
+        'Opens your tapet window, or changes it. The first call must include name (the window title). Fields you send replace those fields: name, width, height, x, y, always_on_top, and css (one global stylesheet). Panels are the children of #tapet, a vertical stack by default: lay them out with CSS on #tapet, e.g. #tapet { display: grid; grid-template-columns: 2fr 1fr }, and target one panel with [data-panel=<id>]. Then check the layout with window_inspect. Returns your tapet session id; record it so you can reconnect with session_attach.',
       schema: windowUpdateSchema,
       async run(args) {
         if (!session?.isOpen()) {
@@ -204,7 +204,7 @@ export function createTapetServer(options: ServerOptions = {}): Server {
         const response = await current.rpc('panelCreate', args)
         return result(response, current.id, (value) => {
           const { channel } = value as { channel: string }
-          return { pipe: commandLine([...selfCommand(), '-c', channel]) }
+          return { pipe: commandLine([...pipeCommand(), '-c', channel]) }
         })
       },
     },

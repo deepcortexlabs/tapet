@@ -1,5 +1,22 @@
-import { request } from 'node:http'
+import { once } from 'node:events'
+import { writeSync } from 'node:fs'
+import { request, type ClientRequest } from 'node:http'
 import { commandLine, selfCommand } from './paths.ts'
+
+// A pipe command often shares its standard output and error with other processes, as in
+// `tee >(<pipe>) | …`. Creating process.stdout or process.stderr would make them non-blocking for
+// all of those processes, and their writes would fail with EAGAIN and lose data. So the pipe
+// never touches them: it streams stdin by hand (stream.pipe() reads process.stdout to compare)
+// and writes errors with writeSync.
+async function pump(upload: ClientRequest) {
+  for await (const chunk of process.stdin) {
+    if (!upload.write(chunk)) {
+      await once(upload, 'drain')
+    }
+  }
+
+  upload.end()
+}
 
 // `tapet -c <address>`: streams stdin into a panel's channel. Prints nothing on success.
 export async function runPipe(
@@ -23,10 +40,9 @@ export async function runPipe(
       }
 
       done = true
-      process.stdin.unpipe(upload)
       process.stdin.destroy()
       if (message) {
-        process.stderr.write(`tapet: ${message}\n`)
+        writeSync(2, `tapet: ${message}\n`)
       }
 
       resolve(code)
@@ -46,7 +62,12 @@ export async function runPipe(
     })
 
     upload.on('error', () => finish(1, 'tapet closed the pipe; its session may have ended'))
-    process.stdin.pipe(upload)
+    pump(upload).catch((error: unknown) => {
+      finish(
+        1,
+        `couldn't read standard input: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    })
   })
 }
 

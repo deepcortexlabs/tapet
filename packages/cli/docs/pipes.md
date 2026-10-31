@@ -11,6 +11,7 @@ tail -f app.log | <pipe>
 - The pipe command prints nothing on success. On an error it prints the reason and the command that shows the session log, and exits with a non-zero code.
 - Many programs buffer their output when it goes to a pipe, so data arrives in bursts. Ask them for line buffering, e.g. `PYTHONUNBUFFERED=1`, `grep --line-buffered`, `stdbuf -oL <command>`.
 - Several pipes can feed one panel, one after another or at the same time. Simultaneous items are ordered by when tapet received them.
+- One command can feed several panels with `tee` and process substitution: `<command> | tee >(<pipe A>) >(<pipe B>) > /dev/null`. Pipe commands never change how the outputs they share behave, so the other readers lose nothing.
 - `--ignore-malformed` skips malformed items instead of stopping (see `formats`).
 - When your session ends, its pipes are closed. The commands feeding them stop the next time they write.
 

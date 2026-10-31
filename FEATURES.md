@@ -47,7 +47,7 @@ The official list of what tapet does today.
 ## Data
 
 - **Pipes:** `<command> | <pipe>` streams standard input into a panel. It prints nothing on success. On an error it prints why and how to read the session log, and exits non-zero.
-- **Many pipes:** several pipes can feed one panel, one after another or at once. Simultaneous items are ordered by arrival.
+- **Many pipes:** several pipes can feed one panel, one after another or at once. Simultaneous items are ordered by arrival. One command can feed several panels through `tee >(<pipe>)` without losing data.
 - **channel_write:** sends data the agent already has, processed exactly like a pipe.
 - **Formats:** `lines`, `ndjson`, `csv` (RFC 4180, header by default) and `whole` (each pipe's input is one item). Text is UTF-8, with LF or CRLF line endings.
 - **Update modes:** `append`, `replace` (keeps only the latest item), `upsert` by `key`, and `patch` by `key` (JSON Merge Patch, RFC 7396). In upsert and patch, `"_deleted": true` removes the item.

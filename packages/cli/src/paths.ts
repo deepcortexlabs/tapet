@@ -13,6 +13,12 @@ export function selfCommand(): string[] {
   return [process.execPath, join(import.meta.dirname, 'main.ts')]
 }
 
+// The pipe command panel_create hands out: Node plus the pipe's own entry file, which loads
+// nothing else (see pipe-main.ts).
+export function pipeCommand(): string[] {
+  return [process.execPath, join(import.meta.dirname, 'pipe-main.ts')]
+}
+
 export function commandLine(args: string[]): string {
   return args.map(quote).join(' ')
 }
