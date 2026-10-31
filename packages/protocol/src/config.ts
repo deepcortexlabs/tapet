@@ -1,5 +1,8 @@
-// tapet's config: environment variables, then the user's file, then the project's file. A setting in
-// a higher layer replaces the same setting below it; each provider counts as one setting.
+// tapet's config: the standard key environment variables, then the user's config.json, then the
+// project's. Strings in the JSON may reference variables as ${NAME}; variables come from the
+// environment and from the config.env files next to the JSON (e.g. a 1Password-mounted secrets
+// file). A setting in a higher layer replaces the same setting below it; each provider counts as
+// one setting.
 import { createReadStream, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -67,7 +70,11 @@ export interface LoadedConfig {
 interface Layer {
   source: string
   values: Record<string, unknown>
+  // ${NAME} references with no value, and where they are.
+  missing?: Array<{ path: string[]; name: string }>
 }
+
+type Variables = Record<string, string | undefined>
 
 export function userConfigDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'tapet')
@@ -79,47 +86,122 @@ export async function loadConfig(options: {
   env?: NodeJS.ProcessEnv
 }): Promise<LoadedConfig> {
   const env = options.env ?? process.env
-  const project = await readLayer([
-    join(options.cwd, '.tapet', 'config.json'),
-    join(options.cwd, '.tapet', 'config.env'),
+  const user = userFiles(env)
+  const project = {
+    json: join(options.cwd, '.tapet', 'config.json'),
+    env: join(options.cwd, '.tapet', 'config.env'),
+  }
+  const variables = await readVariables(env, [user.env, project.env])
+  return resolve([
+    keysLayer(variables),
+    ...(await readJson(user.json, variables)),
+    ...(await readJson(project.json, variables)),
   ])
-  return resolve([envLayer(env), ...(await userLayer(env)), ...project])
 }
 
 // The user's layers only: for the app, whose app-wide settings a project must not change.
 export async function loadUserConfig(env: NodeJS.ProcessEnv = process.env): Promise<LoadedConfig> {
-  return resolve([envLayer(env), ...(await userLayer(env))])
+  const user = userFiles(env)
+  const variables = await readVariables(env, [user.env])
+  return resolve([keysLayer(variables), ...(await readJson(user.json, variables))])
 }
 
-async function userLayer(env: NodeJS.ProcessEnv): Promise<Layer[]> {
-  if (env.TAPET_CONFIG) {
-    return await readLayer([env.TAPET_CONFIG])
+function userFiles(env: NodeJS.ProcessEnv) {
+  const dir = userConfigDir(env)
+  return { json: env.TAPET_CONFIG ?? join(dir, 'config.json'), env: join(dir, 'config.env') }
+}
+
+// The environment, then each config.env that exists on top of it.
+async function readVariables(env: NodeJS.ProcessEnv, paths: string[]): Promise<Variables> {
+  const variables: Variables = { ...env }
+  for (const path of paths.filter((candidate) => existsSync(candidate))) {
+    Object.assign(variables, parseEnvFile(await readStream(path)))
   }
 
-  const dir = userConfigDir(env)
-  return await readLayer([join(dir, 'config.json'), join(dir, 'config.env')])
+  return variables
 }
 
-// Reads the first of the paths that exists. Files are read as streams, which also works with the
-// named pipes 1Password mounts.
-async function readLayer(paths: string[]): Promise<Layer[]> {
-  const path = paths.find((candidate) => existsSync(candidate))
-  if (!path) {
+// The standard key names, so a key in the environment or in config.env works without any JSON.
+function keysLayer(variables: Variables): Layer {
+  const providers: Record<string, ProviderSettings> = {}
+  const provider = (name: ProviderName, settings: ProviderSettings) => {
+    const defined = Object.fromEntries(
+      Object.entries(settings).filter(([, value]) => value !== undefined),
+    )
+    if (Object.keys(defined).length > 0) {
+      providers[name] = defined
+    }
+  }
+  provider('anthropic', { api_key: variables.ANTHROPIC_API_KEY })
+  provider('openai', { api_key: variables.OPENAI_API_KEY, base_url: variables.OPENAI_BASE_URL })
+  provider('google', { api_key: variables.GOOGLE_GENERATIVE_AI_API_KEY })
+  return { source: 'environment', values: Object.keys(providers).length > 0 ? { providers } : {} }
+}
+
+async function readJson(path: string, variables: Variables): Promise<Layer[]> {
+  if (!existsSync(path)) {
     return []
   }
 
-  const text = await readStream(path)
-  if (path.endsWith('.json')) {
-    try {
-      return [{ source: path, values: JSON.parse(text) as Record<string, unknown> }]
-    } catch (error) {
-      return [{ source: path, values: { __invalid: `not valid JSON: ${String(error)}` } }]
-    }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(await readStream(path))
+  } catch (error) {
+    return [{ source: path, values: { __invalid: `not valid JSON: ${String(error)}` } }]
   }
 
-  return [{ source: path, values: fromEnv(parseEnvFile(text)) }]
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return [{ source: path, values: { __invalid: 'must be a JSON object' } }]
+  }
+
+  const missing: Array<{ path: string[]; name: string }> = []
+  const values = expand(parsed, variables, [], missing) as Record<string, unknown>
+  return [{ source: path, values, missing }]
 }
 
+// Replaces ${NAME} in every string with the variable's value; $${ stays a literal ${.
+function expand(
+  value: unknown,
+  variables: Variables,
+  path: string[],
+  missing: Array<{ path: string[]; name: string }>,
+): unknown {
+  if (typeof value === 'string') {
+    return value.replace(
+      /\$\$\{|\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g,
+      (match, name: string | undefined) => {
+        if (match === '$${' || name === undefined) {
+          return '${'
+        }
+
+        const resolved = variables[name]
+        if (resolved === undefined) {
+          missing.push({ path, name })
+          return ''
+        }
+
+        return resolved
+      },
+    )
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item, index) => expand(item, variables, [...path, String(index)], missing))
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        expand(item, variables, [...path, key], missing),
+      ]),
+    )
+  }
+
+  return value
+}
+
+// Files are read as streams, which also works with the named pipes 1Password mounts.
 function readStream(path: string): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     const chunks: Buffer[] = []
@@ -128,10 +210,6 @@ function readStream(path: string): Promise<string> {
       .on('end', () => resolvePromise(Buffer.concat(chunks).toString('utf8')))
       .on('error', reject)
   })
-}
-
-function envLayer(env: NodeJS.ProcessEnv): Layer {
-  return { source: 'environment variables', values: fromEnv(env) }
 }
 
 export function parseEnvFile(text: string): Record<string, string> {
@@ -159,37 +237,6 @@ function unquote(value: string): string {
   }
 
   return value
-}
-
-// Maps environment-style names (the standard provider key names plus TAPET_*) to settings.
-export function fromEnv(vars: Record<string, string | undefined>): Record<string, unknown> {
-  const providers: Record<string, ProviderSettings> = {}
-  const provider = (name: ProviderName, settings: ProviderSettings) => {
-    const defined = Object.fromEntries(
-      Object.entries(settings).filter(([, value]) => value !== undefined),
-    )
-    if (Object.keys(defined).length > 0) {
-      providers[name] = defined
-    }
-  }
-  provider('anthropic', { api_key: vars.ANTHROPIC_API_KEY })
-  provider('openai', { api_key: vars.OPENAI_API_KEY, base_url: vars.OPENAI_BASE_URL })
-  provider('google', { api_key: vars.GOOGLE_GENERATIVE_AI_API_KEY })
-
-  const number = (value: string | undefined) => (value === undefined ? undefined : Number(value))
-  const settings: Record<string, unknown> = {
-    providers: Object.keys(providers).length > 0 ? providers : undefined,
-    models: vars.TAPET_MODELS?.split(',')
-      .map((model) => model.trim())
-      .filter(Boolean),
-    default_model: vars.TAPET_DEFAULT_MODEL,
-    smart_input_tokens: number(vars.TAPET_SMART_INPUT_TOKENS),
-    window_focus: vars.TAPET_WINDOW_FOCUS,
-    ended_panels: vars.TAPET_ENDED_PANELS,
-    daily_token_cap: number(vars.TAPET_DAILY_TOKEN_CAP),
-    app_presence: vars.TAPET_APP_PRESENCE,
-  }
-  return Object.fromEntries(Object.entries(settings).filter(([, value]) => value !== undefined))
 }
 
 function resolve(layers: Layer[]): LoadedConfig {
@@ -225,6 +272,32 @@ function resolve(layers: Layer[]): LoadedConfig {
   }
 }
 
+// The setting a path belongs to: a top-level key, or one provider.
+function settingOf(path: string[]): string[] {
+  const [top = '', provider] = path
+  return top === 'providers' && provider !== undefined ? [top, provider] : [top]
+}
+
+function withoutSettings(
+  values: Record<string, unknown>,
+  settings: string[][],
+): Record<string, unknown> {
+  const kept: Record<string, unknown> = { ...values }
+  for (const [top = '', provider] of settings) {
+    const providers = kept.providers
+    if (provider !== undefined && typeof providers === 'object' && providers !== null) {
+      kept.providers = Object.fromEntries(
+        Object.entries(providers).filter(([name]) => name !== provider),
+      )
+      continue
+    }
+
+    delete kept[top]
+  }
+
+  return kept
+}
+
 // Validates a layer, reporting problems and dropping the settings they're in.
 function validLayer(layer: Layer, issues: string[]): ConfigFile {
   if (typeof layer.values.__invalid === 'string') {
@@ -232,30 +305,34 @@ function validLayer(layer: Layer, issues: string[]): ConfigFile {
     return {}
   }
 
-  const parsed = configSchema.safeParse(layer.values)
+  const broken: string[][] = []
+  for (const { path, name } of layer.missing ?? []) {
+    issues.push(`${layer.source}: ${path.join('.')}: \${${name}} isn't set`)
+    broken.push(settingOf(path))
+  }
+
+  const values = withoutSettings(layer.values, broken)
+  const parsed = configSchema.safeParse(values)
   if (parsed.success) {
     return parsed.data
   }
 
-  const broken = new Set<string>()
+  const invalid: string[][] = []
   for (const issue of parsed.error.issues) {
-    if (issue.code === 'unrecognized_keys' && issue.path.length === 0) {
+    const path = issue.path.map(String)
+    if (issue.code === 'unrecognized_keys') {
       for (const key of issue.keys) {
-        issues.push(`${layer.source}: unknown setting "${key}"`)
-        broken.add(key)
+        issues.push(`${layer.source}: unknown setting "${[...path, key].join('.')}"`)
+        invalid.push(settingOf([...path, key]))
       }
 
       continue
     }
 
-    const [top = ''] = issue.path.map(String)
-    issues.push(
-      `${layer.source}: ${issue.path.map(String).join('.') || '(file)'}: ${issue.message}`,
-    )
-    broken.add(top)
+    issues.push(`${layer.source}: ${path.join('.') || '(file)'}: ${issue.message}`)
+    invalid.push(settingOf(path))
   }
 
-  const kept = Object.fromEntries(Object.entries(layer.values).filter(([key]) => !broken.has(key)))
-  const retried = configSchema.safeParse(kept)
+  const retried = configSchema.safeParse(withoutSettings(values, invalid))
   return retried.success ? retried.data : {}
 }

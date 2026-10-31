@@ -267,14 +267,14 @@ Agents get the full-path form of these commands from tool results. MCP controls 
 ## Config
 
 - **Layers,** lowest to highest; a setting in a higher layer replaces the same setting below it, and each provider counts as one setting (a project can swap the OpenAI key without dropping the user's Anthropic key):
-  1. environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GOOGLE_GENERATIVE_AI_API_KEY`, and `TAPET_*` names;
-  2. the user's file: `TAPET_CONFIG` if set, otherwise `~/.config/tapet/config.json`, or `config.env` there;
-  3. the project's file: `.tapet/config.json`, or `.tapet/config.env`, in `tapet mcp`'s working directory.
-- **Formats:** JSON with snake_case settings, or `.env` with the environment names (`TAPET_MODELS` is comma-separated). Keys may be cleartext, or the file may be a 1Password-mounted `.env`.
+  1. the standard key names (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GOOGLE_GENERATIVE_AI_API_KEY`), from the environment or a `config.env` file;
+  2. the user's `~/.config/tapet/config.json`, or the file `TAPET_CONFIG` names;
+  3. the project's `.tapet/config.json`, in `tapet mcp`'s working directory.
+- **Secrets as `${NAME}` references:** any JSON string may reference a variable, e.g. `"api_key": "${CLAUDE_API_KEY}"`. Variables come from the environment, then `~/.config/tapet/config.env`, then the project's `.tapet/config.env`, and a `config.env` may be a 1Password-mounted file. Keys never have to sit in the JSON, so a project's config can be committed. A reference with no value is reported and its setting ignored; `$${` is a literal `${`. We chose references over a list of JSON paths: the reference sits where the value goes, nothing breaks when settings move, and the syntax is the one shells, docker-compose and Claude Code's `.mcp.json` use.
 - **Reading:** files are read as streams, which works with 1Password's named pipes. `tapet mcp` reads every layer, with its own environment and working directory, each time a session is created or reattached, and hands the session process its settings over the internal API. So the shared app never depends on the environment of the session that launched it.
 - **App-wide settings** (`daily_token_cap`, `app_presence`) come only from the user's layers, which the app reads when it starts. A project can't raise the cap.
 - **Problems** are reported as notices on the next tool result; tapet ignores the broken settings and keeps the rest.
-- **Contents:**
+- **Contents** (JSON, snake_case):
   - `providers`: `anthropic`, `openai` and `google`, each with `api_key`; `openai` also takes `base_url`, for proxies and local OpenAI-compatible servers (tapet then uses the chat completions API, and the key is optional)
   - `models` (`provider/model`) and `default_model` (defaults to the first model)
   - `smart_input_tokens` (default 50,000)
