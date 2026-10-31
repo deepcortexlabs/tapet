@@ -20,8 +20,11 @@ function messageAt(input: unknown, path: string) {
 }
 
 describe('presets', () => {
+  // Presets hold no field names, so some views need them from the agent.
+  const needs: Record<string, object> = { timeseries: { chart: { y: 'latency' } } }
+
   it.each(PRESET_NAMES)('%s produces valid settings', (preset) => {
-    const { settings, issues } = validateCreate({ ...base, preset })
+    const { settings, issues } = validateCreate({ ...base, preset, ...needs[preset] })
     expect(issues).toEqual([])
     expect(settings).toMatchObject(PRESETS[preset])
   })
@@ -180,9 +183,79 @@ describe('validateUpdate', () => {
   })
 
   it('derives follow again for the new view when the agent never set it', () => {
-    const { settings, issues } = validateUpdate(current, { view: 'custom' })
+    const { settings, issues } = validateUpdate(current, {
+      view: 'custom',
+      custom: { code: 'tapet.root.textContent = "hi"' },
+    })
     expect(issues).toEqual([])
     expect(followsNewest(settings as PanelSettings)).toBe(false)
+  })
+})
+
+describe('view settings', () => {
+  it("keeps the view's own settings object", () => {
+    const gauge = { value: 'cpu', style: 'dial', max: 100, unit: '%' } as const
+    const { settings, issues } = validateCreate({
+      ...base,
+      preset: 'gauge',
+      format: 'ndjson',
+      gauge,
+    })
+    expect(issues).toEqual([])
+    expect(settings?.gauge).toEqual(gauge)
+  })
+
+  it("rejects another view's settings object", () => {
+    expect(messageAt({ ...base, preset: 'log', table: { columns: ['a'] } }, 'table')).toBe(
+      'table settings only apply to the table view',
+    )
+  })
+
+  it('names unknown and malformed settings inside the object', () => {
+    expect(paths({ ...base, preset: 'table', table: { colums: ['a'] } })).toEqual(['table.colums'])
+    expect(
+      messageAt({ ...base, preset: 'document', document: { content: 'pdf' } }, 'document.content'),
+    ).toBe('document.content must be one of: markdown, html, text, image')
+  })
+
+  it('requires what a view cannot do without', () => {
+    expect(messageAt({ ...base, preset: 'timeseries' }, 'chart.y')).toContain(
+      'the chart view needs chart.y',
+    )
+    expect(
+      messageAt({ ...base, preset: 'timeseries', chart: { engine: 'vega-lite' } }, 'chart.spec'),
+    ).toContain('needs chart.spec')
+    expect(
+      messageAt({ ...base, format: 'lines', update: 'append', view: 'custom' }, 'custom'),
+    ).toContain('the custom view needs custom.code')
+    expect(
+      messageAt({ ...base, preset: 'gauge', gauge: { style: 'dial' } }, 'gauge.max'),
+    ).toContain('the dial style needs gauge.max')
+  })
+
+  it('rejects contradictions within the object', () => {
+    const vegaLite = { engine: 'vega-lite', spec: { mark: 'bar' }, y: 'count' }
+    expect(messageAt({ ...base, preset: 'timeseries', chart: vegaLite }, 'chart.y')).toContain(
+      'only applies to the uplot engine',
+    )
+    expect(
+      messageAt(
+        { ...base, preset: 'timeseries', chart: { y: ['p50', 'p99'], series: 'host' } },
+        'chart.series',
+      ),
+    ).toContain('y must be a single field')
+    expect(
+      messageAt({ ...base, preset: 'gauge', gauge: { value: 'cpu' } }, 'gauge.value'),
+    ).toContain('with format lines, each line is the value')
+  })
+
+  it("drops the previous view's object when the view changes", () => {
+    const table = validateCreate({ ...base, preset: 'table', table: { columns: ['a'] } })
+      .settings as PanelSettings
+    const { settings, issues } = validateUpdate(table, { view: 'chart', chart: { y: 'a' } })
+    expect(issues).toEqual([])
+    expect(settings?.table).toBeUndefined()
+    expect(settings?.chart).toEqual({ y: 'a' })
   })
 })
 

@@ -14,6 +14,7 @@ import {
   type ViewType,
   type WindowSettings,
 } from './settings.ts'
+import { VIEW_SETTINGS_NAMES, type ChartSettings, type GaugeSettings } from './view-settings.ts'
 
 export interface Issue {
   path: string
@@ -138,7 +139,14 @@ export function validateUpdate(current: PanelSettings, changes: unknown): Valida
     return { issues }
   }
 
-  const settings: Record<string, unknown> = { ...current, ...withoutUndefined(parsed.data) }
+  // A new view starts without the previous view's settings object.
+  const { view } = parsed.data
+  const kept: Record<string, unknown> = { ...current }
+  if (view && view !== current.view) {
+    delete kept[current.view]
+  }
+
+  const settings: Record<string, unknown> = { ...kept, ...withoutUndefined(parsed.data) }
   for (const [name, value] of Object.entries(parsed.data)) {
     if (value === null) {
       delete settings[name]
@@ -237,6 +245,117 @@ function checkRules(settings: PanelSettings): Issue[] {
     issues.push({ path: 'follow', message: `the ${view} view doesn't support follow` })
   }
 
+  for (const name of VIEW_SETTINGS_NAMES) {
+    if (settings[name] !== undefined && name !== view) {
+      issues.push({ path: name, message: `${name} settings only apply to the ${name} view` })
+    }
+  }
+
+  return [...issues, ...viewIssues(settings)]
+}
+
+// What a view needs from its settings object, and contradictions within it.
+function viewIssues(settings: PanelSettings): Issue[] {
+  if (settings.view === 'chart') {
+    return chartIssues(settings.chart ?? {})
+  }
+
+  if (settings.view === 'gauge') {
+    return gaugeIssues(settings.gauge ?? {}, settings.format)
+  }
+
+  if (settings.view === 'custom' && !settings.custom) {
+    return [
+      {
+        path: 'custom',
+        message:
+          'the custom view needs custom.code: JavaScript that renders the panel with the tapet object',
+      },
+    ]
+  }
+
+  return []
+}
+
+const UPLOT_SETTINGS = ['x', 'x_type', 'y', 'series', 'type'] as const
+
+function chartIssues(chart: ChartSettings): Issue[] {
+  const issues: Issue[] = []
+  if (chart.engine === 'vega-lite') {
+    if (!chart.spec) {
+      issues.push({
+        path: 'chart.spec',
+        message:
+          'the vega-lite engine needs chart.spec: a Vega-Lite spec whose data is { "name": "tapet" }',
+      })
+    }
+
+    for (const name of UPLOT_SETTINGS) {
+      if (chart[name] !== undefined) {
+        issues.push({
+          path: `chart.${name}`,
+          message: `chart.${name} only applies to the uplot engine; with vega-lite, the spec says it`,
+        })
+      }
+    }
+
+    return issues
+  }
+
+  if (chart.spec) {
+    issues.push({ path: 'chart.spec', message: 'chart.spec only applies to engine "vega-lite"' })
+  }
+
+  if (chart.y === undefined) {
+    issues.push({
+      path: 'chart.y',
+      message:
+        'the chart view needs chart.y: the field to plot, or a list of fields, e.g. "latency"',
+    })
+  }
+
+  if (chart.series && Array.isArray(chart.y) && chart.y.length > 1) {
+    issues.push({
+      path: 'chart.series',
+      message: 'chart.series splits one y field into a line per value, so y must be a single field',
+    })
+  }
+
+  if (chart.x_type && !chart.x) {
+    issues.push({
+      path: 'chart.x_type',
+      message: 'chart.x_type describes chart.x; without x, the chart uses the arrival time',
+    })
+  }
+
+  return issues
+}
+
+function gaugeIssues(gauge: GaugeSettings, format: Format): Issue[] {
+  const issues: Issue[] = []
+  const { style = 'number', min = 0, max } = gauge
+  if (gauge.value && format === 'lines') {
+    issues.push({
+      path: 'gauge.value',
+      message:
+        'gauge.value names a field of ndjson items; with format lines, each line is the value',
+    })
+  }
+
+  if (style !== 'number' && max === undefined) {
+    issues.push({
+      path: 'gauge.max',
+      message: `the ${style} style needs gauge.max: the top of the scale, e.g. 100`,
+    })
+  }
+
+  if (max !== undefined && max <= min) {
+    issues.push({
+      path: 'gauge.max',
+      message: `gauge.max must be greater than gauge.min (${min})`,
+    })
+  }
+
   return issues
 }
 
@@ -247,7 +366,10 @@ function hasNamedFields(format: Format, header: boolean | undefined): boolean {
 function toIssues(error: ZodError): Issue[] {
   return error.issues.flatMap((issue) => {
     if (issue.code === 'unrecognized_keys') {
-      return issue.keys.map((name) => ({ path: name, message: `unknown setting "${name}"` }))
+      return issue.keys.map((name) => {
+        const path = [...issue.path.map(String), name].join('.')
+        return { path, message: `unknown setting "${path}"` }
+      })
     }
 
     return [{ path: issue.path.map(String).join('.'), message: issue.message }]

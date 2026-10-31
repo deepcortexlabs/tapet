@@ -27,6 +27,26 @@ export type {
   ViewType,
   WindowSettings,
 } from './settings.ts'
+export {
+  CHART_ENGINES,
+  CHART_TYPES,
+  CUSTOM_SURFACES,
+  DOCUMENT_CONTENTS,
+  GAUGE_STYLES,
+  GRAPH_LAYOUTS,
+  VIEW_SETTINGS_NAMES,
+  X_TYPES,
+} from './view-settings.ts'
+export type {
+  ChartSettings,
+  CustomSettings,
+  DocumentSettings,
+  GaugeSettings,
+  GraphSettings,
+  MapSettings,
+  TableSettings,
+  ViewSettingsName,
+} from './view-settings.ts'
 export { createStore } from './store.ts'
 export type {
   ApplyResult,

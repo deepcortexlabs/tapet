@@ -51,7 +51,7 @@ it('stops at malformed data and says how to read the session log', async () => {
   const { app, channel } = await panelChannel({
     format: 'ndjson',
     update: 'append',
-    view: 'custom',
+    view: 'table',
   })
   const { code, stderr } = await runCli(['-c', channel], '{"a":1}\nnot json\n', app.home)
   expect(code).toBe(1)
@@ -63,7 +63,7 @@ it('skips malformed data with --ignore-malformed', async () => {
   const { app, channel } = await panelChannel({
     format: 'ndjson',
     update: 'append',
-    view: 'custom',
+    view: 'table',
   })
   const { code } = await runCli(
     ['-c', channel, '--ignore-malformed'],

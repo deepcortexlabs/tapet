@@ -178,7 +178,7 @@ async function attachedWithLog(format = 'lines') {
   const { attachment } = await attach(started.url)
   await rpc(started.url, attachment, 'windowUpdate', { name: 'logs' })
   const preset =
-    format === 'lines' ? { preset: 'log' } : { format, update: 'append', view: 'custom' }
+    format === 'lines' ? { preset: 'log' } : { format, update: 'append', view: 'table' }
   const created = await rpc(started.url, attachment, 'panelCreate', {
     id: 'log',
     title: 'Log',

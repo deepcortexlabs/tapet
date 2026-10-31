@@ -197,7 +197,7 @@ export function createTapetServer(options: ServerOptions = {}): Server {
     {
       name: 'panel_create',
       description:
-        'Creates a panel. Pick a preset (log, timeseries, table, graph, document, gauge, map) and override any setting, or set format, update and view yourself. id is a simple name (letters, digits, - and _), also used in CSS as [data-panel=<id>]; title is required. Returns pipe: run `<your command> | <pipe>` in your shell to stream data into the panel. format, header, update and key are fixed once created. Views available in this version: log. Add smart: { prompt, every } to have an LLM summarize new data in the panel (docs_get("smart")). See docs_get("panels").',
+        'Creates a panel. Pick a preset (log, timeseries, table, graph, document, gauge, map) and override any setting, or set format, update and view yourself. id is a simple name (letters, digits, - and _), also used in CSS as [data-panel=<id>]; title is required. Returns pipe: run `<your command> | <pipe>` in your shell to stream data into the panel. format, header, update and key are fixed once created. Views available in this version: log, table, document, gauge. Settings for a view go in an object named after it, e.g. gauge: { value: "cpu", max: 100 } (docs_get("views")). Add smart: { prompt, every } to have an LLM summarize new data in the panel (docs_get("smart")). See docs_get("panels").',
       schema: panelCreateSchema,
       async run(args) {
         const current = requireSession()
@@ -211,7 +211,7 @@ export function createTapetServer(options: ServerOptions = {}): Server {
     {
       name: 'panel_update',
       description:
-        "Changes a panel's settings. Fields you send replace those fields: title, retention, view, follow, mapping, css, smart; null clears an optional one (e.g. smart: null removes the smart trait). The panel's data and pipe stay untouched. format, header, update and key are fixed: remove the panel and create a new one to change them.",
+        "Changes a panel's settings. Fields you send replace those fields: title, retention, view, follow, the view's settings object (e.g. table), css, smart; null clears an optional one (e.g. smart: null removes the smart trait). Changing view drops the previous view's settings object. The panel's data and pipe stay untouched. format, header, update and key are fixed: remove the panel and create a new one to change them.",
       schema: z.strictObject({ id: z.string(), ...panelChangesSchema.shape }),
       run: (args) => forward('panelUpdate', args),
     },

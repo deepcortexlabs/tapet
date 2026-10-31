@@ -11,7 +11,7 @@ type State = 'fieldStart' | 'unquoted' | 'quoted' | 'quoteInQuoted'
 
 // RFC 4180 CSV: quoted fields may hold commas, newlines and "" escapes. With a header, items are
 // objects of strings keyed by column name; without one, items are arrays of strings. Values are
-// never converted, since views convert them according to their mapping. Empty lines are skipped.
+// never converted, since views convert them according to their own settings. Empty lines are skipped.
 export function createCsvDecoder({
   header = true,
   ignoreMalformed = false,

@@ -18,8 +18,12 @@ export interface PanelState {
   smart?: SmartView
 }
 
-function toState({ settings, entries, live, smart }: PanelSnapshot): PanelState {
-  const state = { id: settings.id, settings, data: createPanelData(settings, entries), live }
+function toState(
+  { settings, entries, live, smart }: PanelSnapshot,
+  report: (message: string, panel: string) => void,
+): PanelState {
+  const data = createPanelData(settings, entries, (message) => report(message, settings.id))
+  const state = { id: settings.id, settings, data, live }
   return smart ? { ...state, smart } : state
 }
 
@@ -61,6 +65,8 @@ class Client {
     this.#send(panel ? { type: 'error', panel, message } : { type: 'error', message })
   }
 
+  #report = (message: string, panel: string) => this.error(message, panel)
+
   #replace(id: string, change: (panel: PanelState) => PanelState) {
     this.panels = this.panels.map((panel) => (panel.id === id ? change(panel) : panel))
   }
@@ -73,7 +79,7 @@ class Client {
     if (message.type === 'snapshot') {
       this.window = message.window
       this.frozen = message.frozen
-      this.panels = message.panels.map(toState)
+      this.panels = message.panels.map((panel) => toState(panel, this.#report))
       return
     }
 
@@ -83,7 +89,7 @@ class Client {
     }
 
     if (message.type === 'panelAdded') {
-      this.panels = [...this.panels, toState(message.panel)]
+      this.panels = [...this.panels, toState(message.panel, this.#report)]
       return
     }
 

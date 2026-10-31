@@ -4,19 +4,8 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { _electron as electron, expect, test } from '@playwright/test'
-
-const ROOT = join(import.meta.dirname, '..')
-const APP = join(ROOT, 'packages', 'app')
-const CLI = join(ROOT, 'packages', 'cli', 'src', 'main.ts')
-
-function text(result: CallToolResult): string {
-  const [first] = result.content
-  return first?.type === 'text' ? first.text : ''
-}
+import { expect, test } from '@playwright/test'
+import { startTapet, text } from './tapet.ts'
 
 // A PNG's width and height sit in its header, right after the signature and chunk header.
 function pngSize(base64: string) {
@@ -66,13 +55,8 @@ test('an agent shows a live log with a smart summary, then ends and reattaches i
     }),
   )
   const env = { ...process.env, TAPET_HOME: home, TAPET_CONFIG: configPath }
-  const app = await electron.launch({ args: [APP], env })
-  const client = new Client({ name: 'e2e', version: '0' })
-  await client.connect(
-    new StdioClientTransport({ command: process.execPath, args: [CLI, 'mcp'], env }),
-  )
-  const call = async (name: string, args: Record<string, unknown> = {}) =>
-    (await client.callTool({ name, arguments: args })) as CallToolResult
+  const tapet = await startTapet(env)
+  const { app, call } = tapet
 
   try {
     expect(JSON.parse(text(await call('models_get')))).toEqual({
@@ -129,11 +113,7 @@ test('an agent shows a live log with a smart summary, then ends and reattaches i
     expect(JSON.parse(text(await call('session_attach', { session })))).toEqual({ session })
     await expect(panel.locator('.tapet-dot')).toHaveAttribute('data-state', 'idle')
   } finally {
-    await client.close()
+    await tapet.close()
     model.close()
-    // tapet keeps running with no windows open, so quit it the way a user would.
-    const exited = new Promise((resolve) => app.process().once('exit', resolve))
-    await app.evaluate(({ app }) => app.quit())
-    await exited
   }
 })

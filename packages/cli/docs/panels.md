@@ -30,10 +30,10 @@ Without a preset, set `format`, `update` and `view` yourself. See `formats` and 
 - `retention`: what the panel keeps. `"all"` (the default), `{ last: <items> }` or `{ seconds: <seconds> }`. Memory is your responsibility: set retention on panels that receive endless data. It doesn't apply to `replace` panels, which keep only the latest item.
 - `view`: how the data is shown.
 - `follow`: keep the newest data in view. On by default for `append` panels whose view supports it.
-- `mapping`: which data fields go where, per view. tapet never guesses.
+- `table`, `document`, `gauge`, …: the view's own settings, in an object named after the view, e.g. `gauge: { value: "cpu", max: 100 }`. Only the current view's object is allowed (see `views`).
 - `css`: styles for this panel only (see `css`).
 - `smart`: an LLM that summarizes the panel's new data (see `smart`).
 
 ## Changing
 
-`panel_update({ id, ...fields })` replaces the fields you send and keeps the rest; `null` clears an optional setting such as `css` or `smart`. The panel's data and pipe stay untouched. tapet rejects contradictory settings and explains why, e.g. `upsert` without a `key`.
+`panel_update({ id, ...fields })` replaces the fields you send and keeps the rest; `null` clears an optional setting such as `css` or `smart`. Changing `view` drops the previous view's settings object. The panel's data and pipe stay untouched. tapet rejects contradictory settings and explains why, e.g. `upsert` without a `key`.

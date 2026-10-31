@@ -200,3 +200,325 @@
   /* Each line takes its direction from its own text, so Hebrew or Arabic lines read right to left. */
   unicode-bidi: plaintext;
 }
+
+:where(.tapet-jump) {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--tapet-border);
+  border-radius: 5px;
+  background: var(--tapet-panel-bg);
+  color: var(--tapet-accent);
+  cursor: pointer;
+}
+
+/* table */
+
+:where(.tapet-table) {
+  position: relative;
+  height: 100%;
+}
+
+:where(.tapet-table-scroll) {
+  height: 100%;
+  overflow: auto;
+}
+
+:where(.tapet-table-header, .tapet-table-row) {
+  display: grid;
+  grid-template-columns: var(--tapet-table-columns);
+}
+
+:where(.tapet-table-header) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--tapet-panel-bg);
+  border-bottom: 1px solid var(--tapet-border);
+}
+
+:where(.tapet-table-heading button) {
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--tapet-fg);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+:where(.tapet-table-arrow) {
+  font-size: 9px;
+  color: var(--tapet-muted);
+}
+
+:where(.tapet-table-body) {
+  position: relative;
+}
+
+:where(.tapet-table-row) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 24px;
+  line-height: 24px;
+}
+
+:where(.tapet-table-row:nth-child(even)) {
+  background: color-mix(in srgb, var(--tapet-fg) 4%, transparent);
+}
+
+:where(.tapet-table-cell) {
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Each cell takes its direction from its own text, so Hebrew or Arabic reads right to left. */
+  unicode-bidi: plaintext;
+}
+
+:where(.tapet-table-empty) {
+  position: absolute;
+  inset: 40px 0 auto;
+  text-align: center;
+}
+
+/* document */
+
+:where(.tapet-document) {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: 4px 16px;
+  line-height: 1.5;
+}
+
+:where(.tapet-document-item + .tapet-document-item) {
+  border-top: 1px solid var(--tapet-border);
+}
+
+:where(.tapet-document-item:only-child:has(> .tapet-document-image)) {
+  height: 100%;
+}
+
+:where(.tapet-document-image) {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+:where(.tapet-document-text) {
+  margin: 8px 0;
+  font: 12px/1.5 var(--tapet-mono);
+  white-space: pre-wrap;
+  unicode-bidi: plaintext;
+}
+
+:where(.tapet-document-markdown) {
+  unicode-bidi: plaintext;
+}
+
+:where(.tapet-document-markdown pre, .tapet-smart-output pre) {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--tapet-bg);
+  overflow: auto;
+  font: 12px/1.5 var(--tapet-mono);
+}
+
+:where(.tapet-document-markdown code, .tapet-smart-output code) {
+  font-family: var(--tapet-mono);
+}
+
+:where(.tapet-document-markdown table) {
+  border-collapse: collapse;
+}
+
+:where(.tapet-document-markdown th, .tapet-document-markdown td) {
+  padding: 4px 8px;
+  border: 1px solid var(--tapet-border);
+}
+
+:where(.tapet-document-markdown img) {
+  max-width: 100%;
+}
+
+:where(.tapet-mermaid) {
+  margin: 8px 0;
+  text-align: center;
+}
+
+:where(.tapet-mermaid-error) {
+  color: #d70015;
+  font-family: var(--tapet-mono);
+  font-size: 12px;
+}
+
+/* Code highlighting (highlight.js classes), in the theme's light and dark colors. */
+:where(.hljs-comment, .hljs-quote) {
+  color: var(--tapet-muted);
+  font-style: italic;
+}
+
+:where(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag) {
+  color: #ad3da4;
+}
+
+:where(.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attribute) {
+  color: #c41a16;
+}
+
+:where(.hljs-number, .hljs-symbol, .hljs-bullet) {
+  color: #1c00cf;
+}
+
+:where(.hljs-title, .hljs-section, .hljs-name) {
+  color: #3f6e74;
+}
+
+:where(.hljs-type, .hljs-built_in, .hljs-class) {
+  color: #703daa;
+}
+
+:where(.hljs-attr, .hljs-variable, .hljs-template-variable, .hljs-meta) {
+  color: #836c28;
+}
+
+:where(.hljs-deletion) {
+  color: #d70015;
+}
+
+@media (prefers-color-scheme: dark) {
+  :where(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag) {
+    color: #ff7ab2;
+  }
+
+  :where(.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attribute) {
+    color: #ff8170;
+  }
+
+  :where(.hljs-number, .hljs-symbol, .hljs-bullet) {
+    color: #d9c97c;
+  }
+
+  :where(.hljs-title, .hljs-section, .hljs-name) {
+    color: #78c2b3;
+  }
+
+  :where(.hljs-type, .hljs-built_in, .hljs-class) {
+    color: #dabaff;
+  }
+
+  :where(.hljs-attr, .hljs-variable, .hljs-template-variable, .hljs-meta) {
+    color: #ffa14f;
+  }
+}
+
+/* gauge */
+
+:where(.tapet-gauge) {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2cqh;
+  /* Sizes below follow the panel's size. */
+  container-type: size;
+}
+
+:where(.tapet-gauge-value) {
+  font-size: min(40cqh, 20cqw);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+:where(.tapet-gauge[data-style='bar'] .tapet-gauge-value) {
+  font-size: min(28cqh, 16cqw);
+}
+
+:where(.tapet-gauge-unit) {
+  margin-inline-start: 0.1em;
+  font-size: 0.5em;
+  font-weight: 400;
+  color: var(--tapet-muted);
+}
+
+:where(.tapet-gauge-dial) {
+  width: 100%;
+  height: 100%;
+}
+
+:where(.tapet-gauge-track, .tapet-gauge-fill) {
+  fill: none;
+  stroke-width: 10;
+}
+
+:where(.tapet-gauge-track) {
+  stroke: var(--tapet-border);
+}
+
+:where(.tapet-gauge-fill) {
+  stroke: var(--tapet-accent);
+}
+
+:where(.tapet-gauge-dial text) {
+  fill: var(--tapet-fg);
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.tapet-gauge-dial-value) {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+:where(.tapet-gauge-dial .tapet-gauge-unit) {
+  fill: var(--tapet-muted);
+}
+
+:where(.tapet-gauge-dial .tapet-gauge-limit) {
+  font-size: 7px;
+  fill: var(--tapet-muted);
+}
+
+:where(.tapet-gauge-bar) {
+  width: 90%;
+  height: clamp(8px, 10cqh, 28px);
+  border-radius: 4px;
+  background: var(--tapet-border);
+  overflow: hidden;
+}
+
+:where(.tapet-gauge-bar-fill) {
+  height: 100%;
+  background: var(--tapet-accent);
+}
+
+:where(.tapet-gauge-limits) {
+  width: 90%;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--tapet-muted);
+}
+
+:where(.tapet-gauge-error) {
+  color: #d70015;
+  font-family: var(--tapet-mono);
+  text-align: center;
+}

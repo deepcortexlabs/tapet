@@ -1,4 +1,20 @@
 import { z } from 'zod'
+import {
+  chartSettings,
+  customSettings,
+  documentSettings,
+  gaugeSettings,
+  graphSettings,
+  mapSettings,
+  tableSettings,
+  type ChartSettings,
+  type CustomSettings,
+  type DocumentSettings,
+  type GaugeSettings,
+  type GraphSettings,
+  type MapSettings,
+  type TableSettings,
+} from './view-settings.ts'
 
 export const FORMATS = ['lines', 'ndjson', 'csv', 'whole'] as const
 export const UPDATE_MODES = ['append', 'replace', 'upsert', 'patch'] as const
@@ -45,7 +61,14 @@ export interface PanelSettings {
   view: ViewType
   // Only set when the agent chose it; see followsNewest() for the effective value.
   follow?: boolean
-  mapping?: Record<string, unknown>
+  // The view's own settings, in an object named after it. Only the current view's object is set.
+  table?: TableSettings
+  document?: DocumentSettings
+  gauge?: GaugeSettings
+  chart?: ChartSettings
+  graph?: GraphSettings
+  map?: MapSettings
+  custom?: CustomSettings
   css?: string
   smart?: SmartSettings
 }
@@ -88,7 +111,6 @@ const retention = z.union(
 )
 const view = z.enum(VIEW_TYPES, { error: `view must be one of: ${VIEW_TYPES.join(', ')}` })
 const follow = z.boolean({ error: 'follow must be true or false' })
-const mapping = z.record(z.string(), z.unknown(), { error: 'mapping must be an object' })
 const css = z.string({ error: 'css must be a string' })
 const PROMPT_MESSAGE = "smart.prompt is required: what the LLM should do with the panel's new data"
 const smart = z.strictObject(
@@ -131,7 +153,13 @@ export const panelCreateSchema = z.strictObject({
   retention: retention.optional(),
   view: view.optional(),
   follow: follow.optional(),
-  mapping: mapping.optional(),
+  table: tableSettings.optional(),
+  document: documentSettings.optional(),
+  gauge: gaugeSettings.optional(),
+  chart: chartSettings.optional(),
+  graph: graphSettings.optional(),
+  map: mapSettings.optional(),
+  custom: customSettings.optional(),
   css: css.optional(),
   smart: smart.optional(),
 })
@@ -143,7 +171,13 @@ export const panelChangesSchema = z.strictObject({
   retention: retention.optional(),
   view: view.optional(),
   follow: follow.nullable().optional(),
-  mapping: mapping.nullable().optional(),
+  table: tableSettings.nullable().optional(),
+  document: documentSettings.nullable().optional(),
+  gauge: gaugeSettings.nullable().optional(),
+  chart: chartSettings.nullable().optional(),
+  graph: graphSettings.nullable().optional(),
+  map: mapSettings.nullable().optional(),
+  custom: customSettings.nullable().optional(),
   css: css.nullable().optional(),
   smart: smart.nullable().optional(),
 })

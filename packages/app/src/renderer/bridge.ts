@@ -6,6 +6,9 @@ export interface Bridge {
   entries(): Entry[]
   onChange(listener: (change: Change) => void): () => void
   onSettings(listener: (settings: PanelSettings) => void): () => void
+  // Tells the agent about a problem the view found, e.g. data it can't show. A message that
+  // repeats the previous one isn't sent again.
+  reportError(message: string): void
 }
 
 export interface MountedView {
@@ -21,8 +24,13 @@ export interface PanelData {
 }
 
 // A panel's settings and data in the window, kept in step with the session process.
-export function createPanelData(settings: PanelSettings, entries: Entry[]): PanelData {
+export function createPanelData(
+  settings: PanelSettings,
+  entries: Entry[],
+  report: (message: string) => void,
+): PanelData {
   let current = settings
+  let reported: string | undefined
   const byKey = new Map<EntryKey, Entry>(entries.map((entry) => [entry.key, entry]))
   const changeListeners = new Set<(change: Change) => void>()
   const settingsListeners = new Set<(settings: PanelSettings) => void>()
@@ -42,6 +50,14 @@ export function createPanelData(settings: PanelSettings, entries: Entry[]): Pane
         return () => {
           settingsListeners.delete(listener)
         }
+      },
+      reportError(message) {
+        if (message === reported) {
+          return
+        }
+
+        reported = message
+        report(message)
       },
     },
 
