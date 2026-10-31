@@ -1,0 +1,2 @@
+# Text files use LF everywhere, including Windows checkouts, which the formatter checks.
+* text=auto eol=lf
