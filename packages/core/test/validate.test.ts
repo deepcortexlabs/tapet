@@ -259,6 +259,15 @@ describe('view settings', () => {
     ).toContain('with format lines, each line is the value')
   })
 
+  it('takes base maps only from allowed hosts', () => {
+    const map = (base_map: unknown) => ({ ...base, preset: 'map', map: { base_map } })
+    expect(paths(map('https://tiles.openfreemap.org/styles/positron'))).toEqual([])
+    expect(paths(map(false))).toEqual([])
+    expect(messageAt(map('https://tiles.example.com/style.json'), 'map.base_map')).toContain(
+      'allowed host (tiles.openfreemap.org)',
+    )
+  })
+
   it("drops the previous view's object when the view changes", () => {
     const table = validateCreate({ ...base, preset: 'table', table: { columns: ['a'] } })
       .settings as PanelSettings

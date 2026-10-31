@@ -1,6 +1,6 @@
 # Views
 
-Views available in this version: **log**, **table**, **chart**, **graph**, **document** and **gauge**. Coming next: map and custom. Any panel can also carry a smart output (see `smart`).
+Views available in this version: **log**, **table**, **chart**, **graph**, **map**, **document** and **gauge**. Coming next: custom. Any panel can also carry a smart output (see `smart`).
 
 A view's own settings go in an object named after it, e.g. `{ view: "gauge", gauge: { value: "cpu", style: "dial", max: 100 } }`. They can change at any time with `panel_update`; sending the object replaces it whole. When `panel_update` switches to another view, the previous view's object is dropped.
 
@@ -77,6 +77,22 @@ panel_create({ id: "calls", title: "Service calls", preset: "graph", graph: { la
 - Labels show for the largest and best-connected nodes that fit without overlapping. Hovering a node shows its fields.
 - The user can zoom, pan and drag nodes. Until they do, the view keeps the whole graph in sight.
 - The panel shows how many nodes and edges it has.
+
+## map
+
+```
+panel_create({ id: "votes", title: "Votes by town", preset: "map", map: { color_by: "votes", tooltip: ["name", "votes"] } })
+```
+
+- Accepts `format: "ndjson"`, and `update: "append"`, `"upsert"` or `"patch"`. Each item is a GeoJSON feature: `{ "type": "Feature", "id": …, "geometry": …, "properties": … }`. Points, lines and polygons all work, including their multi forms.
+- The `map` preset upserts by `id`, so a later version of a feature replaces it, e.g. a vote count that grows. Many GeoJSON files keep the id in `properties`; jq can lift it: `jq -c '.features[] | .id = .properties.code'`.
+- `map.base_map`: the map underneath. Defaults to OpenFreeMap (positron, or dark in dark mode). Another style must be an https URL on an allowed host (tiles.openfreemap.org). `false` draws only the features, with no network.
+- `map.label_language`: the language of the base map's labels, e.g. `"he"`. Defaults to `"en"`. Places without a name in that language show their local name.
+- `map.borders`: `true` shows country and region borders and names on the base map. They're off by default, so the map takes no side where borders are disputed; cities, roads and water are always labeled.
+- `map.color_by`: colors features by this property's number along a blue scale, with a legend. Features without a number are gray. In dark mode the scale runs the other way, so small values fade into the background. `map.colors` replaces the scale with your own CSS colors, smallest value first.
+- `map.tooltip`: the properties shown when hovering a feature. Defaults to all of them.
+- The view zooms to the data when it first arrives; after that, the user moves it.
+- If the base map doesn't load within 15 seconds, you get a notice; `base_map: false` draws the features anyway.
 
 ## document
 

@@ -212,3 +212,54 @@ test('graph: nodes and edges, including nodes only edges mention, in both layout
   await expect(panel.locator('.tapet-graph-count')).toHaveText('3 nodes · 3 edges')
   await tapet.call('panel_remove', { id: 'deps' })
 })
+
+test('map: GeoJSON features colored by a value, with a legend and a tooltip, offline', async () => {
+  const send = await createPanel({
+    id: 'votes',
+    title: 'Votes',
+    preset: 'map',
+    map: { base_map: false, color_by: 'votes', tooltip: ['name', 'votes'] },
+  })
+  const panel = page.locator('[data-panel=votes]')
+  await expect(panel.locator('.tapet-map-count')).toHaveText('No data yet')
+  const empty = await screenshot('votes')
+
+  const square = (id: string, name: string, votes: number, lon: number) => ({
+    type: 'Feature',
+    id,
+    properties: { name, votes },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [lon, 31],
+          [lon + 1, 31],
+          [lon + 1, 32],
+          [lon, 32],
+          [lon, 31],
+        ],
+      ],
+    },
+  })
+  const city = {
+    type: 'Feature',
+    id: 'c',
+    properties: { name: 'City' },
+    geometry: { type: 'Point', coordinates: [35, 31.5] },
+  }
+  send(
+    `${[square('a', 'West', 100, 34), square('b', 'East', 900, 35), city].map((item) => JSON.stringify(item)).join('\n')}\n`,
+  )
+  await expect(panel.locator('.tapet-map-count')).toHaveText('3 features')
+  await expect(panel.locator('.tapet-map-range')).toHaveText('100900')
+  expect((await screenshot('votes')).length).toBeGreaterThan(empty.length)
+
+  // The view zoomed to the data, so a quarter of the way across is inside the western square.
+  const box = await panel.locator('.tapet-map-canvas').boundingBox()
+  await page.mouse.move(
+    (box?.x ?? 0) + (box?.width ?? 0) * 0.3,
+    (box?.y ?? 0) + (box?.height ?? 0) * 0.5,
+  )
+  await expect(panel.locator('.tapet-map-tooltip')).toContainText('West')
+  await tapet.call('panel_remove', { id: 'votes' })
+})

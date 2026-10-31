@@ -1,24 +1,6 @@
 // Vega-Lite specs get tapet's theme as their base config; the spec's own config wins.
 import { mergePatch } from '@tapet/core'
-import type { ChartTheme } from '../theme.ts'
-
-// Sequential blue, light to dark. On a dark surface the ramp runs the other way, so values near
-// zero still recede toward the surface.
-const BLUES = [
-  '#cde2fb',
-  '#b7d3f6',
-  '#9ec5f4',
-  '#86b6ef',
-  '#6da7ec',
-  '#5598e7',
-  '#3987e5',
-  '#2a78d6',
-  '#256abf',
-  '#1c5cab',
-  '#184f95',
-  '#104281',
-  '#0d366b',
-]
+import { SEQUENTIAL, type ChartTheme } from '../theme.ts'
 
 // Composite specs size themselves; single views fill the panel.
 const COMPOSITE = ['hconcat', 'vconcat', 'concat', 'facet', 'repeat']
@@ -33,7 +15,8 @@ function themeConfig(theme: ChartTheme): Record<string, unknown> {
     titleFontSize: 11,
     titleFontWeight: 500,
   }
-  const ramp = theme.dark ? BLUES.toReversed() : BLUES
+  // On a dark surface the ramp runs the other way, so values near zero still recede into it.
+  const ramp = theme.dark ? SEQUENTIAL.toReversed() : SEQUENTIAL
   return {
     background: 'transparent',
     font: theme.font,

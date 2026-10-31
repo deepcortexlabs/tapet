@@ -20,6 +20,7 @@ What people use it for:
 - **Documents:** reports in Markdown, with highlighted code, math and Mermaid diagrams. Also sanitized HTML, plain text and images.
 - **Charts:** time series with zoom and a readout on hover, or any Vega-Lite spec.
 - **Graphs:** dependency trees, call graphs and any edge list, up to a million nodes.
+- **Maps:** GeoJSON features over a base map, e.g. results by town, colored by their numbers.
 - **Gauges:** the latest value of a metric, as a number, dial or bar.
 - **Layout in plain CSS:** the agent arranges panels with CSS it already knows. It checks the result with a screenshot.
 
@@ -37,7 +38,7 @@ agent's shell:   <command> | <pipe> ──────▶ a panel in that window
   - how long items are kept;
   - which view shows them.
 - **One app, separate sessions:** one tapet app serves every agent, but each agent session gets its own window and background process. Sessions are kept fully apart.
-- **Everything stays on your machine:** tapet listens on localhost only, with a token per session. The one exception is smart panels, which send panel data to the model provider you configure.
+- **Everything stays on your machine:** tapet listens on localhost only, with a token per session. Two things reach the network: smart panels send panel data to the model provider you configure, and map panels load their base map from OpenFreeMap. The window can't load from any other host.
 
 ### Views
 
@@ -49,7 +50,7 @@ agent's shell:   <command> | <pipe> ──────▶ a panel in that window
 | `gauge`    | available | the latest value as a number, dial or bar              |
 | `chart`    | available | time series (uPlot) and any Vega-Lite spec             |
 | `graph`    | available | nodes and edges                                        |
-| `map`      | coming    | GeoJSON features on a map                              |
+| `map`      | available | GeoJSON features on a map                              |
 | `custom`   | coming    | the agent's own code in a sandbox                      |
 
 ## Setup
@@ -175,6 +176,23 @@ jq -c '{source: .caller, target: .callee}' traces.ndjson | <pipe>
 ```
 
 The nodes come from the edges. A force layout on the GPU handles a million of them; `graph: { layout: 'hierarchical' }` draws dependencies in layers instead.
+
+**"Show the vote counts on a map."**
+
+```js
+panel_create({
+  id: 'votes',
+  title: 'Votes by town',
+  preset: 'map',
+  map: { color_by: 'votes', tooltip: ['name', 'votes'] },
+})
+```
+
+```bash
+jq -c '.features[] | .id = .properties.code' towns.geojson | <pipe>
+```
+
+Each feature replaces the one with the same `id`, so a count that changes repaints its town. The base map comes from OpenFreeMap, without country borders or names unless `map: { borders: true }`; `map: { base_map: false }` draws only the features.
 
 **"Write up the incident and show it to me."**
 

@@ -702,3 +702,90 @@
 :where(.tapet-graph-key) {
   color: var(--tapet-muted);
 }
+
+/* map. MapLibre's own controls keep their styles. */
+
+:where(.tapet-map) {
+  position: relative;
+  height: 100%;
+}
+
+:where(.tapet-map-canvas) {
+  position: absolute;
+  inset: 0;
+}
+
+:where(.tapet-map-container) {
+  width: 100%;
+  height: 100%;
+}
+
+:where(.tapet-map-info) {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tapet-panel-bg) 85%, transparent);
+  font-size: 11px;
+  color: var(--tapet-muted);
+  pointer-events: none;
+}
+
+:where(.tapet-map-legend) {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 160px;
+}
+
+:where(.tapet-map-ramp) {
+  height: 8px;
+  border-radius: 2px;
+}
+
+:where(.tapet-map-range) {
+  display: flex;
+  justify-content: space-between;
+  color: var(--tapet-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.tapet-map-tooltip) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  max-width: 320px;
+  pointer-events: none;
+  padding: 6px 8px;
+  border: 1px solid var(--tapet-border);
+  border-radius: 6px;
+  background: var(--tapet-panel-bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* MapLibre's stylesheet loads with the map, after tapet's, so these need its own specificity. */
+.tapet-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--tapet-panel-bg) 85%, transparent);
+  color: var(--tapet-muted);
+}
+
+.tapet-map .maplibregl-ctrl-attrib a {
+  color: var(--tapet-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  .tapet-map .maplibregl-ctrl-attrib-button {
+    filter: invert(1);
+  }
+}
+
+:where(.tapet-map-key) {
+  color: var(--tapet-muted);
+}

@@ -114,6 +114,7 @@ export const mapSettings = z.strictObject(
       .min(2, { error: 'map.colors needs at least two colors: the low and high ends of the scale' })
       .optional(),
     tooltip: fieldList('map.tooltip', '["name", "votes"]').optional(),
+    borders: z.boolean({ error: 'map.borders must be true or false' }).optional(),
   },
   { error: 'map must be an object, e.g. { color_by: "votes" }' },
 )

@@ -53,6 +53,7 @@ const VIEWS: Partial<Record<ViewType, ViewMount>> = {
   table: svelteView(TableView),
   chart: svelteView(ChartView),
   graph: lazyView(() => import('./graph/GraphView.svelte')),
+  map: lazyView(() => import('./map/MapView.svelte')),
   document: svelteView(DocumentView),
   gauge: svelteView(GaugeView),
 }

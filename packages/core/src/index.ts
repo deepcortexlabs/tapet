@@ -2,6 +2,7 @@
 export { createDecoder } from './formats/index.ts'
 export type { DecodeResult, Decoder, DecoderOptions, MalformedError } from './formats/index.ts'
 export { mergePatch } from './merge-patch.ts'
+export { NETWORK_HOSTS, isAllowedUrl } from './network.ts'
 export { PRESETS, resolvePanel } from './presets.ts'
 export type { Preset, ResolvedPanel } from './presets.ts'
 export {

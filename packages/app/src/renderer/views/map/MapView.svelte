@@ -1,0 +1,376 @@
+<script lang="ts">
+  import type { MapSettings } from '@tapet/core'
+  import {
+    Map as MapLibre,
+    setWorkerUrl,
+    type ErrorEvent,
+    type ExpressionSpecification,
+    type GeoJSONSource,
+    type MapLayerMouseEvent,
+    type StyleSpecification,
+  } from 'maplibre-gl'
+  import 'maplibre-gl/dist/maplibre-gl.css'
+  import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
+  import { onDestroy, untrack } from 'svelte'
+  import type { Bridge } from '../../bridge.ts'
+  import { SEQUENTIAL, onThemeChange, readTheme, type ChartTheme } from '../theme.ts'
+  import { SCALE, buildMap, labelField, neutralize } from './map-model.ts'
+
+  let props: { bridge: Bridge } = $props()
+  // A view keeps its bridge for life; tapet remounts the view to change it.
+  const bridge = untrack(() => props.bridge)
+
+  // MapLibre looks for its worker next to its own module only when the page is served over http;
+  // tapet's window is a file, so it gets the URL of the worker bundled with the view.
+  setWorkerUrl(new URL(workerUrl, document.baseURI).href)
+
+  const SOURCE = 'tapet'
+  // The panel's features, one layer per kind of geometry.
+  const LAYERS = ['tapet-fill', 'tapet-line', 'tapet-point'] as const
+  const TOOLTIP_ROWS = 8
+  const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
+
+  let container: HTMLDivElement | undefined = $state()
+  let count = $state(0)
+  let loading = $state(true)
+  let legend = $state<{ field: string; low: string; high: string; gradient: string }>()
+  let tip = $state<{ x: number; y: number; rows: Array<[string, string]> }>()
+
+  let map: MapLibre | undefined
+  let theme: ChartTheme | undefined
+  let loaded = false
+  // The view zooms to the data once, when it first arrives.
+  let fitted = false
+  let frame = 0
+  let slowTimer: ReturnType<typeof setTimeout> | undefined
+  // What the current style was built from; a change of either loads a new one.
+  let styleKey = ''
+  const SLOW_STYLE_MS = 15_000
+
+  function settings(): MapSettings {
+    return bridge.settings().map ?? {}
+  }
+
+  function ramp(current: ChartTheme): string[] {
+    const { colors } = settings()
+    if (colors) {
+      return colors
+    }
+
+    // On a dark map the ramp runs the other way, so low values recede into it.
+    return current.dark ? SEQUENTIAL.toReversed() : SEQUENTIAL
+  }
+
+  // Without color_by, every feature takes the first series color; with it, features take their
+  // place on the ramp, and features without a number are gray.
+  function color(current: ChartTheme): ExpressionSpecification | string {
+    if (!settings().color_by) {
+      return current.series[0] ?? current.fg
+    }
+
+    const colors = ramp(current)
+    const stops = colors.flatMap((value, index) => [index / Math.max(1, colors.length - 1), value])
+    return [
+      'case',
+      ['has', SCALE],
+      ['interpolate', ['linear'], ['get', SCALE], ...stops],
+      current.muted,
+    ] as ExpressionSpecification
+  }
+
+  function baseStyle(current: ChartTheme): string | StyleSpecification {
+    const { base_map: baseMap } = settings()
+    if (baseMap === false) {
+      return {
+        version: 8,
+        sources: {},
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': current.surface } }],
+      }
+    }
+
+    return baseMap ?? `https://tiles.openfreemap.org/styles/${current.dark ? 'dark' : 'positron'}`
+  }
+
+  function keyOf(current: ChartTheme): string {
+    const { base_map: baseMap, label_language: language, borders } = settings()
+    return JSON.stringify([baseMap, language, borders, current.dark, current.surface])
+  }
+
+  // Unless map.borders is on, the base map shows no country or region borders and names.
+  function applyBorders() {
+    if (!map || settings().borders) {
+      return
+    }
+
+    const layers = map.getStyle().layers as Parameters<typeof neutralize>[0]
+    for (const change of neutralize(layers)) {
+      if (change.hide) {
+        map.setLayoutProperty(change.id, 'visibility', 'none')
+        continue
+      }
+
+      map.setFilter(change.id, change.filter as Parameters<MapLibre['setFilter']>[1])
+    }
+  }
+
+  function geometry(...types: string[]): ExpressionSpecification {
+    return ['match', ['geometry-type'], types, true, false] as ExpressionSpecification
+  }
+
+  // The base map's labels in the chosen language, falling back to the local name.
+  function localizeLabels() {
+    const language = settings().label_language ?? 'en'
+    for (const layer of map?.getStyle().layers ?? []) {
+      const field = layer.type === 'symbol' ? JSON.stringify(layer.layout?.['text-field'] ?? '') : ''
+      if (field.includes('name')) {
+        map?.setLayoutProperty(layer.id, 'text-field', labelField(language) as ExpressionSpecification)
+      }
+    }
+  }
+
+  function addLayers(current: ChartTheme) {
+    if (!map) {
+      return
+    }
+
+    const paint = color(current)
+    // The panel's layers go over the base map's roads and areas but under its labels, so place
+    // names stay readable: before the first label that follows the last shape layer.
+    const layers = map.getStyle().layers
+    const lastShape = layers.findLastIndex((layer) => layer.type !== 'symbol')
+    const labels = layers.slice(lastShape + 1).find((layer) => layer.type === 'symbol')?.id
+    const add = (layer: Parameters<MapLibre['addLayer']>[0]) => map?.addLayer(layer, labels)
+    map.addSource(SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+    add({
+      id: 'tapet-fill',
+      type: 'fill',
+      source: SOURCE,
+      filter: geometry('Polygon', 'MultiPolygon'),
+      paint: { 'fill-color': paint, 'fill-opacity': 0.75 },
+    })
+    // A hairline in the surface color keeps neighboring areas apart.
+    add({
+      id: 'tapet-outline',
+      type: 'line',
+      source: SOURCE,
+      filter: geometry('Polygon', 'MultiPolygon'),
+      paint: { 'line-color': current.surface, 'line-width': 0.75 },
+    })
+    add({
+      id: 'tapet-line',
+      type: 'line',
+      source: SOURCE,
+      filter: geometry('LineString', 'MultiLineString'),
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': paint, 'line-width': 2 },
+    })
+    add({
+      id: 'tapet-point',
+      type: 'circle',
+      source: SOURCE,
+      filter: geometry('Point', 'MultiPoint'),
+      paint: {
+        'circle-color': paint,
+        'circle-radius': 5,
+        'circle-stroke-color': current.surface,
+        'circle-stroke-width': 2,
+      },
+    })
+  }
+
+  function recolor(current: ChartTheme) {
+    const paint = color(current)
+    map?.setPaintProperty('tapet-fill', 'fill-color', paint)
+    map?.setPaintProperty('tapet-line', 'line-color', paint)
+    map?.setPaintProperty('tapet-point', 'circle-color', paint)
+  }
+
+  function update() {
+    frame = 0
+    if (!map || !theme) {
+      return
+    }
+
+    const data = buildMap(bridge.entries(), settings())
+    if (data.warning) {
+      bridge.reportError(data.warning)
+    }
+
+    count = data.features.length
+    const { color_by: field } = settings()
+    const colors = ramp(theme)
+    legend =
+      field && data.range
+        ? {
+            field,
+            low: number.format(data.range[0]),
+            high: number.format(data.range[1]),
+            gradient: `linear-gradient(to right, ${colors.join(', ')})`,
+          }
+        : undefined
+    // Features go on the map once its style has loaded; until then, the panel says it's loading.
+    if (!loaded) {
+      return
+    }
+
+    const collection = { type: 'FeatureCollection', features: data.features }
+    map.getSource<GeoJSONSource>(SOURCE)?.setData(collection as Parameters<GeoJSONSource['setData']>[0])
+    if (!fitted && data.bounds) {
+      fitted = true
+      map.fitBounds(data.bounds, { padding: 32, maxZoom: 14, animate: false })
+    }
+  }
+
+  function scheduleUpdate() {
+    frame ||= requestAnimationFrame(update)
+  }
+
+  // The tooltip lists map.tooltip's properties, or all of them.
+  function showTip(event: MapLayerMouseEvent) {
+    const properties = event.features?.[0]?.properties ?? {}
+    const keys = settings().tooltip ?? Object.keys(properties).filter((key) => key !== SCALE)
+    const rows = keys
+      .filter((key) => properties[key] !== undefined)
+      .slice(0, TOOLTIP_ROWS)
+      .map((key): [string, string] => {
+        const value: unknown = properties[key]
+        return [key, typeof value === 'number' ? number.format(value) : String(value)]
+      })
+    tip = rows.length > 0 ? { x: event.point.x, y: event.point.y, rows } : undefined
+    if (map) {
+      map.getCanvas().style.cursor = 'pointer'
+    }
+  }
+
+  function hideTip() {
+    tip = undefined
+    if (map) {
+      map.getCanvas().style.cursor = ''
+    }
+  }
+
+  // A base map that doesn't load leaves the panel without features: tell the agent the way out.
+  function watchStyle() {
+    loading = true
+    clearTimeout(slowTimer)
+    slowTimer = setTimeout(() => {
+      if (!loaded) {
+        bridge.reportError(
+          `the base map hasn't loaded after ${SLOW_STYLE_MS / 1000} seconds; map.base_map: false draws only the features`,
+        )
+      }
+    }, SLOW_STYLE_MS)
+  }
+
+  function create() {
+    if (!container) {
+      return
+    }
+
+    theme = readTheme(container)
+    styleKey = keyOf(theme)
+    map = new MapLibre({
+      container,
+      style: baseStyle(theme),
+      attributionControl: { compact: true },
+      center: [0, 20],
+      zoom: 1,
+    })
+    // A new style starts empty: the panel's layers go back on it.
+    map.on('style.load', () => {
+      if (!theme) {
+        return
+      }
+
+      localizeLabels()
+      applyBorders()
+      addLayers(theme)
+      loaded = true
+      loading = false
+      clearTimeout(slowTimer)
+      update()
+    })
+    map.on('error', (event: ErrorEvent) => {
+      bridge.reportError(`the base map didn't load (${event.error.message}); map.base_map: false draws only the features`)
+    })
+    for (const layer of LAYERS) {
+      map.on('mousemove', layer, showTip)
+      map.on('mouseleave', layer, hideTip)
+    }
+
+    watchStyle()
+    update()
+  }
+
+  // The theme or the base map settings changed: a new style, or just new colors.
+  function restyle() {
+    if (!map || !container) {
+      return
+    }
+
+    theme = readTheme(container)
+    const key = keyOf(theme)
+    if (key !== styleKey) {
+      styleKey = key
+      loaded = false
+      watchStyle()
+      map.setStyle(baseStyle(theme))
+      return
+    }
+
+    if (loaded) {
+      recolor(theme)
+      update()
+    }
+  }
+
+  const stopChanges = bridge.onChange(scheduleUpdate)
+  // The panel's CSS may have changed the theme's colors; it applies a frame later.
+  const stopSettings = bridge.onSettings(() => requestAnimationFrame(restyle))
+  const stopTheme = onThemeChange(restyle)
+  const resizes = new ResizeObserver(() => map?.resize())
+
+  $effect(() => {
+    if (!container) {
+      return
+    }
+
+    resizes.observe(container)
+    untrack(create)
+  })
+
+  onDestroy(() => {
+    cancelAnimationFrame(frame)
+    clearTimeout(slowTimer)
+    stopChanges()
+    stopSettings()
+    stopTheme()
+    resizes.disconnect()
+    map?.remove()
+  })
+</script>
+
+<div class="tapet-map">
+  <!-- MapLibre makes its container position: relative, so it fills a box of tapet's. -->
+  <div class="tapet-map-canvas"><div class="tapet-map-container" bind:this={container}></div></div>
+  {#if tip}
+    <div class="tapet-map-tooltip" style:transform="translate({tip.x + 12}px, {tip.y + 12}px)">
+      {#each tip.rows as [key, value], index (index)}
+        <div><span class="tapet-map-key">{key}</span> {value}</div>
+      {/each}
+    </div>
+  {/if}
+  <div class="tapet-map-info">
+    {#if legend}
+      <div class="tapet-map-legend">
+        <span class="tapet-map-key">{legend.field}</span>
+        <span class="tapet-map-ramp" style:background={legend.gradient}></span>
+        <span class="tapet-map-range"><span>{legend.low}</span><span>{legend.high}</span></span>
+      </div>
+    {/if}
+    <span class="tapet-map-count">
+      {count === 0 ? 'No data yet' : `${count.toLocaleString()} ${count === 1 ? 'feature' : 'features'}`}
+      {#if loading}· loading the base map…{/if}
+    </span>
+  </div>
+</div>
