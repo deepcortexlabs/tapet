@@ -49,6 +49,7 @@ it('lists every tool with a strict JSON schema, and short instructions', async (
     additionalProperties: false,
   })
   expect(client.getInstructions()).toContain('Record your tapet session id')
+  expect(JSON.stringify(tools)).not.toContain(String(Number.MAX_SAFE_INTEGER))
 })
 
 it('needs a name to open the window, and returns the session id', async () => {

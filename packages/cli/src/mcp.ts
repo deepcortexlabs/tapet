@@ -236,7 +236,7 @@ export function createTapetServer(backend: Backend = appBackend): Server {
     tools: tools.map((tool) => ({
       name: tool.name,
       description: tool.description,
-      inputSchema: z.toJSONSchema(tool.schema, { io: 'input' }) as { type: 'object' },
+      inputSchema: toolSchema(tool.schema),
     })),
   }))
 
@@ -266,6 +266,22 @@ export async function runMcp(): Promise<void> {
   server.onclose = () => process.exit(0)
   process.stdin.on('end', () => process.exit(0))
   await server.connect(new StdioServerTransport())
+}
+
+function toolSchema(schema: z.ZodType): { type: 'object' } {
+  return z.toJSONSchema(schema, {
+    io: 'input',
+    // zod adds JavaScript's safe-integer limits to every whole-number field: noise in every agent's context.
+    override: ({ jsonSchema }) => {
+      if (jsonSchema.maximum === Number.MAX_SAFE_INTEGER) {
+        delete jsonSchema.maximum
+      }
+
+      if (jsonSchema.minimum === Number.MIN_SAFE_INTEGER) {
+        delete jsonSchema.minimum
+      }
+    },
+  }) as { type: 'object' }
 }
 
 function textResult(value: unknown, isError = false): CallToolResult {

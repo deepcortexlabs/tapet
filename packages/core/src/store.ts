@@ -176,6 +176,11 @@ export function createStore(options: StoreOptions): Store {
       return `"${keyField}" must be a string or a number`
     }
 
+    // Otherwise every item missing an id would silently merge into one.
+    if (key === '') {
+      return `"${keyField}" must not be empty`
+    }
+
     if (item[DELETED] === true) {
       remove(key)
       return

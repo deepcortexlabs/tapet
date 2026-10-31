@@ -76,6 +76,7 @@ describe('upsert', () => {
     const store = createStore({ update: 'upsert', key: 'id', retention: 'all' })
     expect(store.apply(['text'], 0).error?.message).toBe('expected an object with a "id" field')
     expect(store.apply([{ id: {} }], 0).error?.message).toBe('"id" must be a string or a number')
+    expect(store.apply([{ id: '' }], 0).error?.message).toBe('"id" must not be empty')
   })
 
   it('skips and counts items without a usable key when told to ignore them', () => {
