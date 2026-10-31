@@ -47,6 +47,18 @@ export interface PanelSettings {
   follow?: boolean
   mapping?: Record<string, unknown>
   css?: string
+  smart?: SmartSettings
+}
+
+// The smart trait: an LLM that reads the panel's new data and keeps a rolling output.
+export interface SmartSettings {
+  prompt: string
+  // When to run on its own: after N new items, or every T seconds. Omit to run only via smart_run.
+  every?: { items: number } | { seconds: number }
+  // How many past outputs each run sees. Defaults to 1.
+  history?: number
+  // "provider/model"; defaults to the config's default_model.
+  model?: string
 }
 
 const ID_MESSAGE =
@@ -78,6 +90,32 @@ const view = z.enum(VIEW_TYPES, { error: `view must be one of: ${VIEW_TYPES.join
 const follow = z.boolean({ error: 'follow must be true or false' })
 const mapping = z.record(z.string(), z.unknown(), { error: 'mapping must be an object' })
 const css = z.string({ error: 'css must be a string' })
+const PROMPT_MESSAGE = "smart.prompt is required: what the LLM should do with the panel's new data"
+const smart = z.strictObject(
+  {
+    prompt: z.string({ error: PROMPT_MESSAGE }).trim().min(1, { error: PROMPT_MESSAGE }),
+    every: z
+      .union(
+        [
+          z.strictObject({ items: z.int().positive() }),
+          z.strictObject({ seconds: z.number().positive() }),
+        ],
+        { error: 'smart.every must be { items: <number of new items> } or { seconds: <seconds> }' },
+      )
+      .optional(),
+    history: z
+      .int({ error: 'smart.history must be a whole number, at least 1' })
+      .positive({ error: 'smart.history must be a whole number, at least 1' })
+      .optional(),
+    model: z
+      .string()
+      .regex(/^[a-z][a-z0-9-]*\/\S+$/, {
+        error: 'smart.model must look like "provider/model", e.g. "anthropic/claude-haiku-4-5"',
+      })
+      .optional(),
+  },
+  { error: 'smart must be an object with at least a prompt' },
+)
 
 // Input of panel_create. A preset fills in whatever the agent leaves out.
 export const panelCreateSchema = z.strictObject({
@@ -95,16 +133,19 @@ export const panelCreateSchema = z.strictObject({
   follow: follow.optional(),
   mapping: mapping.optional(),
   css: css.optional(),
+  smart: smart.optional(),
 })
 
-// Settings panel_update may replace. Fixed settings, id and preset are rejected before parsing.
+// Settings panel_update may replace; null clears an optional one. Fixed settings, id and preset
+// are rejected before parsing.
 export const panelChangesSchema = z.strictObject({
   title: title.optional(),
   retention: retention.optional(),
   view: view.optional(),
-  follow: follow.optional(),
-  mapping: mapping.optional(),
-  css: css.optional(),
+  follow: follow.nullable().optional(),
+  mapping: mapping.nullable().optional(),
+  css: css.nullable().optional(),
+  smart: smart.nullable().optional(),
 })
 
 export type PanelCreateInput = z.output<typeof panelCreateSchema>

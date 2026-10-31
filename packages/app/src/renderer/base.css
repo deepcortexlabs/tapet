@@ -54,9 +54,63 @@
   padding: 6px 10px;
   font-weight: 600;
   border-bottom: 1px solid var(--tapet-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:where(.tapet-title-text) {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* live: a pipe is feeding the panel; idle: none is; ended: the session ended. */
+:where(.tapet-dot) {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: var(--tapet-muted);
+}
+
+:where(.tapet-dot[data-state='live']) {
+  background: #30d158;
+}
+
+:where(.tapet-dot[data-state='ended']) {
+  background: transparent;
+  border: 1px solid var(--tapet-muted);
+}
+
+:where(.tapet-smart-status) {
+  flex: none;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--tapet-muted);
+}
+
+:where(.tapet-smart-status[data-status='cap reached'], .tapet-smart-status[data-status='error']) {
+  color: #d70015;
+}
+
+:where(.tapet-smart-output) {
+  max-height: 40%;
+  overflow: auto;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--tapet-border);
+  line-height: 1.45;
+}
+
+:where(.tapet-smart-output p, .tapet-smart-output ul, .tapet-smart-output ol) {
+  margin: 6px 0;
+}
+
+:where(.tapet-smart-error) {
+  color: #d70015;
 }
 
 :where(.tapet-body) {

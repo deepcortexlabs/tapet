@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, expect, it } from 'vitest'
+import type { Config } from '@tapet/protocol'
 import { createTapetServer } from '../src/mcp.ts'
 import { FAKE_PNG, fakeApp } from './fake-app.ts'
 
@@ -11,11 +12,25 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()))
 })
 
-async function connect() {
+const CONFIG: Config = {
+  providers: { openai: { api_key: 'sk-secret' } },
+  models: ['openai/fake'],
+  default_model: 'openai/fake',
+  smart_input_tokens: 50_000,
+  window_focus: 'never',
+  ended_panels: 'keep',
+  daily_token_cap: 2_000_000,
+  app_presence: 'dock',
+}
+
+async function connect(issues: string[] = []) {
   const app = await fakeApp()
   apps.push(app)
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
-  await createTapetServer(app.backend).connect(serverSide)
+  await createTapetServer({
+    backend: app.backend,
+    config: async () => ({ config: CONFIG, issues }),
+  }).connect(serverSide)
   const client = new Client({ name: 'test', version: '0' })
   await client.connect(clientSide)
   const call = async (name: string, args: Record<string, unknown> = {}) =>
@@ -41,8 +56,11 @@ it('lists every tool with a strict JSON schema, and short instructions', async (
     'panel_update',
     'panel_remove',
     'channel_write',
+    'smart_run',
+    'smart_read',
     'session_attach',
     'session_end',
+    'models_get',
     'docs_get',
   ])
   expect(tools.find((tool) => tool.name === 'panel_create')?.inputSchema).toMatchObject({
@@ -119,4 +137,37 @@ it('ends a session and reattaches to it by id', async () => {
 it('serves usage docs by topic', async () => {
   const { call } = await connect()
   expect(text(await call('docs_get', { topic: 'pipes' }))).toContain('# Pipes')
+})
+
+it('lists the configured models without their keys', async () => {
+  const { call } = await connect()
+  const listed = text(await call('models_get'))
+  expect(JSON.parse(listed)).toEqual({ models: ['openai/fake'], default_model: 'openai/fake' })
+  expect(listed).not.toContain('sk-secret')
+})
+
+it('runs a smart panel and reads its outputs', async () => {
+  const { call } = await connect()
+  await call('window_update', { name: 'logs' })
+  await call('panel_create', {
+    id: 'log',
+    title: 'Log',
+    preset: 'log',
+    smart: { prompt: 'Summarize' },
+  })
+  expect(JSON.parse(text(await call('smart_run', { panel: 'log' })))).toMatchObject({
+    text: '**summary**',
+    tokens: 6,
+  })
+  expect(JSON.parse(text(await call('smart_read', { panel: 'log', last: 5 })))).toMatchObject({
+    outputs: [{ text: '**summary**' }],
+  })
+})
+
+it('reports config problems with the next tool result', async () => {
+  const { call } = await connect(['~/.config/tapet/config.json: unknown setting "colour"'])
+  const opened = JSON.parse(text(await call('window_update', { name: 'logs' })))
+  expect(opened.notices).toEqual([
+    'tapet config: ~/.config/tapet/config.json: unknown setting "colour"',
+  ])
 })

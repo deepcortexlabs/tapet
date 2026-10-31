@@ -4,6 +4,7 @@ import type {
   Geometry,
   PanelSnapshot,
   SessionToWindow,
+  SmartView,
   WindowToSession,
 } from '@tapet/protocol/messages'
 import { createPanelData, type PanelData } from './bridge.ts'
@@ -12,10 +13,14 @@ export interface PanelState {
   id: string
   settings: PanelSettings
   data: PanelData
+  // Whether a pipe is feeding the panel right now.
+  live: boolean
+  smart?: SmartView
 }
 
-function toState({ settings, entries }: PanelSnapshot): PanelState {
-  return { id: settings.id, settings, data: createPanelData(settings, entries) }
+function toState({ settings, entries, live, smart }: PanelSnapshot): PanelState {
+  const state = { id: settings.id, settings, data: createPanelData(settings, entries), live }
+  return smart ? { ...state, smart } : state
 }
 
 function measure(): Geometry {
@@ -54,6 +59,10 @@ class Client {
 
   error(message: string, panel?: string) {
     this.#send(panel ? { type: 'error', panel, message } : { type: 'error', message })
+  }
+
+  #replace(id: string, change: (panel: PanelState) => PanelState) {
+    this.panels = this.panels.map((panel) => (panel.id === id ? change(panel) : panel))
   }
 
   #send(message: WindowToSession) {
@@ -105,6 +114,16 @@ class Client {
 
     if (message.type === 'frozen') {
       this.frozen = message.frozen
+      return
+    }
+
+    if (message.type === 'panelLive') {
+      this.#replace(message.panel, (panel) => ({ ...panel, live: message.live }))
+      return
+    }
+
+    if (message.type === 'smart') {
+      this.#replace(message.panel, (panel) => ({ ...panel, smart: message.smart }))
       return
     }
 

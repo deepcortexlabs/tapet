@@ -8,6 +8,10 @@ tapet runs on its own copy of Electron. Run the setup command from the error mes
 
 The running app speaks a different internal protocol than this tapet. Ask the user to quit tapet (Cmd-Q on macOS), then retry; tapet starts again on your next call.
 
+## A smart panel shows an error
+
+Usually a missing API key, a model that isn't configured, or the daily token cap. `models_get` lists the configured models; `docs_get("config")` shows what the user needs to add.
+
 ## A pipe stopped
 
 The pipe command printed why and the command that shows the session log. The usual causes are malformed data (see `formats`) and the session ending (see `sessions`).

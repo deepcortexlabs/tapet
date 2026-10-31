@@ -38,4 +38,5 @@ export function preferencesPath(home = tapetHome()): string {
   return join(home, 'preferences.json')
 }
 
+export * from './config.ts'
 export type * from './messages.ts'

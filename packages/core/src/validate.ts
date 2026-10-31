@@ -138,7 +138,14 @@ export function validateUpdate(current: PanelSettings, changes: unknown): Valida
     return { issues }
   }
 
-  return checked({ ...current, ...withoutUndefined(parsed.data) })
+  const settings: Record<string, unknown> = { ...current, ...withoutUndefined(parsed.data) }
+  for (const [name, value] of Object.entries(parsed.data)) {
+    if (value === null) {
+      delete settings[name]
+    }
+  }
+
+  return checked(settings as unknown as PanelSettings)
 }
 
 function complete(resolved: ResolvedPanel): ValidationResult {

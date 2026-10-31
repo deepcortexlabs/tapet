@@ -205,3 +205,39 @@ describe('validateWindowUpdate', () => {
     expect(issues.map((issue) => issue.path).sort()).toEqual(['colour', 'width'])
   })
 })
+
+describe('smart', () => {
+  it('accepts a smart trait on any panel', () => {
+    const smart = {
+      prompt: 'Summarize errors',
+      every: { items: 10 },
+      history: 3,
+      model: 'anthropic/claude-haiku-4-5',
+    }
+    expect(validateCreate({ ...base, preset: 'log', smart }).settings?.smart).toEqual(smart)
+  })
+
+  it('explains a missing prompt and a malformed trigger', () => {
+    expect(
+      messageAt({ ...base, preset: 'log', smart: { every: { items: 10 } } }, 'smart.prompt'),
+    ).toContain('smart.prompt is required')
+    expect(
+      messageAt(
+        { ...base, preset: 'log', smart: { prompt: 'x', every: { lines: 10 } } },
+        'smart.every',
+      ),
+    ).toContain('smart.every must be')
+  })
+
+  it('removes the smart trait, or any optional setting, when panel_update sends null', () => {
+    const current = validateCreate({
+      ...base,
+      preset: 'log',
+      css: 'x',
+      smart: { prompt: 'Summarize' },
+    }).settings as PanelSettings
+    const { settings } = validateUpdate(current, { smart: null, css: null })
+    expect(settings?.smart).toBeUndefined()
+    expect(settings?.css).toBeUndefined()
+  })
+})

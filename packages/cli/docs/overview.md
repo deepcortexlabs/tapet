@@ -16,5 +16,7 @@ tapet is a window you direct to show things to your user. Data doesn't pass thro
 - `views`: what each view shows and how to configure it
 - `css`: the window's structure, classes and theme variables
 - `pipes`: pipe commands, buffering, malformed data, `channel_write`
+- `smart`: an LLM that summarizes a panel's new data
+- `config`: keys, models and behaviors the user configures
 - `sessions`: ids, reconnecting, ending, closed windows
 - `troubleshooting`: setup, version mismatches, errors and logs

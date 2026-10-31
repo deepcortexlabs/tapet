@@ -4,12 +4,25 @@ import { randomBytes } from 'node:crypto'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { MockLanguageModelV4 } from 'ai/test'
 import { createSession, type Session, type WindowPort } from '@tapet/app/session'
 import type { SessionAddress, SessionToWindow, WindowToSession } from '@tapet/protocol'
 import type { Backend } from '../src/mcp.ts'
 import { TapetError } from '../src/paths.ts'
 
 export const FAKE_PNG = new Uint8Array([137, 80, 78, 71])
+
+export const FAKE_MODEL = new MockLanguageModelV4({
+  doGenerate: async () => ({
+    content: [{ type: 'text', text: '**summary**' }],
+    finishReason: { unified: 'stop', raw: undefined },
+    usage: {
+      inputTokens: { total: 4, noCache: 4, cacheRead: undefined, cacheWrite: undefined },
+      outputTokens: { total: 2, text: 2, reasoning: undefined },
+    },
+    warnings: [],
+  }),
+})
 
 function renderingWindow(): WindowPort {
   let listener: ((message: WindowToSession) => void) | undefined
@@ -48,11 +61,23 @@ export async function fakeApp() {
       token,
       logPath: join(home, 'logs', `${id}.log`),
       renderTimeoutMs: 500,
+      modelFor: () => FAKE_MODEL,
       main: {
         send(message) {
           if (message.type === 'showWindow' && !opened) {
             opened = true
             queueMicrotask(() => session.handleMain({ type: 'windowOpened' }, renderingWindow()))
+          }
+
+          if (message.type === 'capCheck') {
+            const reply = {
+              type: 'cap',
+              requestId: message.requestId,
+              allowed: true,
+              used: 0,
+              cap: 100,
+            } as const
+            queueMicrotask(() => session.handleMain(reply))
           }
 
           if (message.type === 'screenshot') {

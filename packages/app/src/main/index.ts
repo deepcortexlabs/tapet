@@ -1,5 +1,6 @@
 // tapet's main process. It only creates sessions and their windows, and does what only it can:
-// window management, screenshots and dialogs. Session traffic never passes through it.
+// window management, screenshots, dialogs, the menu bar and the daily token cap. Session traffic
+// never passes through it.
 import { randomBytes } from 'node:crypto'
 import { mkdir, rm } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
@@ -19,6 +20,7 @@ import {
   PROTOCOL_VERSION,
   TAPET_VERSION,
   controlSocketPath,
+  loadUserConfig,
   tapetHome,
   type ControlRequest,
   type ControlResponse,
@@ -27,7 +29,9 @@ import {
   type SessionToMain,
 } from '@tapet/protocol'
 import sessionEntry from '../session/index.ts?modulePath'
+import { createMenuBar, type MenuBar } from './menu-bar.ts'
 import { readPreferences, writePreferences } from './preferences.ts'
+import { createUsage, type Usage } from './usage.ts'
 
 interface SessionRecord {
   id: string
@@ -45,6 +49,9 @@ interface SessionRecord {
 const sessions = new Map<string, SessionRecord>()
 // Set once the user quits, so closing windows doesn't ask about ended sessions.
 let quitting = false
+// App-wide settings, from the user's own config (a project can't change them).
+let usage: Usage | undefined
+let menuBar: MenuBar | undefined
 
 function send(
   record: SessionRecord,
@@ -57,7 +64,23 @@ function send(
 }
 
 function titleOf(record: SessionRecord): string {
-  return `${record.settings.name ?? 'tapet'}${record.frozen ? ' (ended)' : ''}`
+  return record.settings.name ?? 'tapet'
+}
+
+function bringToFront(window: BrowserWindow) {
+  window.show()
+  window.focus()
+  if (process.platform === 'darwin') {
+    app.focus({ steal: true })
+  }
+}
+
+// Closes the window and ends the session's process; reattaching fails after this.
+function discard(record: SessionRecord) {
+  send(record, { type: 'discard' })
+  sessions.delete(record.id)
+  record.window?.destroy()
+  menuBar?.refresh()
 }
 
 function createSession(): SessionRecord {
@@ -98,18 +121,33 @@ function handleSession(record: SessionRecord, message: SessionToMain) {
   if (message.type === 'showWindow') {
     record.settings = message.window
     record.frozen = message.frozen
-    showWindow(record)
+    showWindow(record, message.focus)
     return
   }
 
   if (message.type === 'focusWindow') {
-    const { window } = record
-    window?.show()
-    window?.focus()
-    if (process.platform === 'darwin') {
-      app.focus({ steal: true })
+    if (record.window) {
+      bringToFront(record.window)
     }
 
+    return
+  }
+
+  if (message.type === 'capCheck') {
+    const { requestId } = message
+    void (usage?.check() ?? Promise.resolve({ allowed: true, used: 0, cap: 0 })).then((state) =>
+      send(record, { type: 'cap', requestId, ...state }),
+    )
+    return
+  }
+
+  if (message.type === 'tokensUsed') {
+    void usage?.add(message.tokens)
+    return
+  }
+
+  if (message.type === 'discardSelf') {
+    discard(record)
     return
   }
 
@@ -126,15 +164,19 @@ function handleSession(record: SessionRecord, message: SessionToMain) {
 
   if (message.type === 'frozen') {
     record.frozen = message.frozen
-    record.window?.setTitle(titleOf(record))
   }
 }
 
-function showWindow(record: SessionRecord) {
+function showWindow(record: SessionRecord, focus: boolean) {
   const { settings } = record
   const existing = record.window
   if (existing && !existing.isDestroyed()) {
     applySettings(record, existing)
+    if (focus) {
+      bringToFront(existing)
+    }
+
+    menuBar?.refresh()
     return
   }
 
@@ -147,6 +189,8 @@ function showWindow(record: SessionRecord) {
     alwaysOnTop: settings.always_on_top ?? false,
     title: titleOf(record),
     show: false,
+    // In menu-bar mode, windows stay out of the taskbar too.
+    skipTaskbar: menuBar !== undefined,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       partition: `tapet-session-${record.id}`,
@@ -170,11 +214,18 @@ function showWindow(record: SessionRecord) {
     }
 
     send(record, { type: 'windowClosed' })
+    menuBar?.refresh()
   })
   window.webContents.once('did-finish-load', () => {
     const { port1, port2 } = new MessageChannelMain()
     window.webContents.postMessage('tapet-port', null, [port2])
     send(record, { type: 'windowOpened' }, [port1])
+    menuBar?.refresh()
+    if (focus) {
+      bringToFront(window)
+      return
+    }
+
     window.showInactive()
   })
 
@@ -219,9 +270,7 @@ async function onWindowClose(record: SessionRecord, window: BrowserWindow, event
   event.preventDefault()
   const choice = await frozenCloseChoice(window)
   if (choice === 'discard') {
-    send(record, { type: 'discard' })
-    sessions.delete(record.id)
-    window.destroy()
+    discard(record)
     return
   }
 
@@ -355,7 +404,21 @@ if (!app.requestSingleInstanceLock()) {
   })
   app
     .whenReady()
-    .then(startControlServer)
+    .then(async () => {
+      const { config, issues } = await loadUserConfig()
+      for (const issue of issues) {
+        console.error(`tapet config: ${issue}`)
+      }
+
+      usage = createUsage({ path: join(tapetHome(), 'usage.json'), cap: config.daily_token_cap })
+      if (config.app_presence === 'menu_bar') {
+        menuBar = createMenuBar(() =>
+          [...sessions.values()].flatMap((record) => (record.window ? [record.window] : [])),
+        )
+      }
+
+      await startControlServer()
+    })
     .catch((error: unknown) => {
       console.error('tapet: failed to start', error)
       app.exit(1)

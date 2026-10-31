@@ -30,6 +30,9 @@ export type RpcMethod =
   | 'panelRemove'
   | 'channelWrite'
   | 'sessionEnd'
+  | 'sessionConfigure'
+  | 'smartRun'
+  | 'smartRead'
 
 export interface RpcRequest {
   method: RpcMethod
@@ -68,11 +71,17 @@ export interface Geometry {
 // Session process ↔ main process, over the utility process's parentPort.
 export type SessionToMain =
   | { type: 'ready'; url: string }
-  // Creates, updates or reopens the window. A new window's port arrives with 'windowOpened'.
-  | { type: 'showWindow'; window: WindowSettings; frozen: boolean }
+  // Creates, updates or reopens the window, taking focus if asked. A new window's port arrives
+  // with 'windowOpened'.
+  | { type: 'showWindow'; window: WindowSettings; frozen: boolean; focus: boolean }
   | { type: 'focusWindow' }
   | { type: 'screenshot'; requestId: number; rect?: Rect }
   | { type: 'frozen'; frozen: boolean }
+  // The session ended and its config says to remove its panels: close the window, end the process.
+  | { type: 'discardSelf' }
+  // Before a smart run: may it spend tokens under the daily cap?
+  | { type: 'capCheck'; requestId: number }
+  | { type: 'tokensUsed'; tokens: number }
 
 export type MainToSession =
   | { type: 'init'; id: string; token: string; home: string }
@@ -81,10 +90,29 @@ export type MainToSession =
   | { type: 'windowClosed' }
   | { type: 'screenshot'; requestId: number; png?: Uint8Array; error?: string }
   | { type: 'discard' }
+  | { type: 'cap'; requestId: number; allowed: boolean; used: number; cap: number }
+
+export interface SmartOutput {
+  at: number
+  model: string
+  tokens: number
+  text?: string
+  error?: string
+}
+
+export type SmartStatus = 'idle' | 'running' | 'cap reached' | 'error'
+
+export interface SmartView {
+  status: SmartStatus
+  latest?: SmartOutput
+}
 
 export interface PanelSnapshot {
   settings: PanelSettings
   entries: Entry[]
+  // Whether a pipe is feeding the panel right now.
+  live: boolean
+  smart?: SmartView
 }
 
 // Session process ↔ window, over the window's MessagePort.
@@ -98,6 +126,8 @@ export type SessionToWindow =
   | { type: 'changes'; panels: Record<string, Change[]> }
   | { type: 'frozen'; frozen: boolean }
   | { type: 'geometry'; requestId: number }
+  | { type: 'panelLive'; panel: string; live: boolean }
+  | { type: 'smart'; panel: string; smart?: SmartView }
 
 export type WindowToSession =
   // Sent after a panel is mounted or its settings are applied.

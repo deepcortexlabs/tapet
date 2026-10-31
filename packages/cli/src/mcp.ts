@@ -13,9 +13,13 @@ import { z } from 'zod'
 import { panelChangesSchema, panelCreateSchema, windowUpdateSchema } from '@tapet/core'
 import {
   TAPET_VERSION,
+  loadConfig,
+  type Config,
+  type LoadedConfig,
   type RpcMethod,
   type RpcResponse,
   type SessionAddress,
+  type SessionConfig,
 } from '@tapet/protocol'
 import { requestSession } from './app.ts'
 import { TapetError, commandLine, selfCommand } from './paths.ts'
@@ -39,7 +43,9 @@ export const DOC_TOPICS = [
   'views',
   'css',
   'pipes',
+  'smart',
   'sessions',
+  'config',
   'troubleshooting',
 ] as const
 
@@ -48,6 +54,7 @@ const INSTRUCTIONS = `tapet is a window you direct to show things to your user. 
 - Resuming is your job: keep your own record of your setup. window_get returns the current one.
 - Pipes like \`tail -f … | <pipe>\` never exit, so run them in a way that doesn't block you.
 - Memory is yours to manage: set retention on panels that receive endless data.
+- A panel's smart trait lets an LLM summarize its new data; models_get lists the configured models.
 Call docs_get for details.`
 
 interface Tool {
@@ -59,8 +66,49 @@ interface Tool {
 
 const noArguments = z.strictObject({})
 
-export function createTapetServer(backend: Backend = appBackend): Server {
+export interface ServerOptions {
+  backend?: Backend
+  // Reads tapet's config; by default from the environment, the user's file and this project's.
+  config?: () => Promise<LoadedConfig>
+}
+
+// What a session needs from the config. App-wide settings stay with the app.
+function sessionConfig(config: Config): SessionConfig {
+  return {
+    providers: config.providers,
+    models: config.models,
+    ...(config.default_model ? { default_model: config.default_model } : {}),
+    smart_input_tokens: config.smart_input_tokens,
+    window_focus: config.window_focus,
+    ended_panels: config.ended_panels,
+  }
+}
+
+export function createTapetServer(options: ServerOptions = {}): Server {
+  const backend = options.backend ?? appBackend
+  const readConfig = options.config ?? (() => loadConfig({ cwd: process.cwd() }))
   let session: AttachedSession | undefined
+  // Config problems found while connecting; they ride on the next tool result.
+  let configNotices: string[] = []
+
+  // Attaches to a session and hands it this project's config, read fresh each time.
+  async function connect(address: SessionAddress): Promise<AttachedSession> {
+    const attached = await attachSession(address)
+    const { config, issues } = await readConfig()
+    configNotices = issues.map((issue) => `tapet config: ${issue}`)
+    const configured = await attached.rpc('sessionConfigure', { config: sessionConfig(config) })
+    if (!configured.ok) {
+      configNotices.push(`tapet config: ${configured.error.message}`)
+    }
+
+    return attached
+  }
+
+  function result(response: RpcResponse, sessionId: string, shape?: (value: unknown) => unknown) {
+    const notices = [...configNotices, ...response.notices]
+    configNotices = []
+    return fromRpc({ ...response, notices }, sessionId, shape)
+  }
 
   function requireSession(): AttachedSession {
     if (session?.isOpen()) {
@@ -80,7 +128,7 @@ export function createTapetServer(backend: Backend = appBackend): Server {
 
   async function forward(method: RpcMethod, params?: unknown): Promise<CallToolResult> {
     const current = requireSession()
-    return fromRpc(await current.rpc(method, params), current.id)
+    return result(await current.rpc(method, params), current.id)
   }
 
   const tools: Tool[] = [
@@ -95,10 +143,10 @@ export function createTapetServer(backend: Backend = appBackend): Server {
             throw new TapetError('name is required on the first window_update: the window title')
           }
 
-          session = await attachSession(await backend.createSession())
+          session = await connect(await backend.createSession())
         }
 
-        return fromRpc(await session.rpc('windowUpdate', args), session.id)
+        return result(await session.rpc('windowUpdate', args), session.id)
       },
     },
     {
@@ -123,18 +171,17 @@ export function createTapetServer(backend: Backend = appBackend): Server {
         const current = requireSession()
         const response = await current.rpc('windowScreenshot', args)
         if (!response.ok) {
-          return fromRpc(response, current.id)
+          return result(response, current.id)
         }
 
         const { png } = response.result as { png: string }
         const content: CallToolResult['content'] = [
           { type: 'image', data: png, mimeType: 'image/png' },
         ]
-        if (response.notices.length > 0) {
-          content.push({
-            type: 'text',
-            text: JSON.stringify({ notices: response.notices }, null, 2),
-          })
+        const notices = [...configNotices, ...response.notices]
+        configNotices = []
+        if (notices.length > 0) {
+          content.push({ type: 'text', text: JSON.stringify({ notices }, null, 2) })
         }
 
         return { content }
@@ -150,13 +197,13 @@ export function createTapetServer(backend: Backend = appBackend): Server {
     {
       name: 'panel_create',
       description:
-        'Creates a panel. Pick a preset (log, timeseries, table, graph, document, gauge, map) and override any setting, or set format, update and view yourself. id is a simple name (letters, digits, - and _), also used in CSS as [data-panel=<id>]; title is required. Returns pipe: run `<your command> | <pipe>` in your shell to stream data into the panel. format, header, update and key are fixed once created. Views available in this version: log. See docs_get("panels").',
+        'Creates a panel. Pick a preset (log, timeseries, table, graph, document, gauge, map) and override any setting, or set format, update and view yourself. id is a simple name (letters, digits, - and _), also used in CSS as [data-panel=<id>]; title is required. Returns pipe: run `<your command> | <pipe>` in your shell to stream data into the panel. format, header, update and key are fixed once created. Views available in this version: log. Add smart: { prompt, every } to have an LLM summarize new data in the panel (docs_get("smart")). See docs_get("panels").',
       schema: panelCreateSchema,
       async run(args) {
         const current = requireSession()
         const response = await current.rpc('panelCreate', args)
-        return fromRpc(response, current.id, (result) => {
-          const { channel } = result as { channel: string }
+        return result(response, current.id, (value) => {
+          const { channel } = value as { channel: string }
           return { pipe: commandLine([...selfCommand(), '-c', channel]) }
         })
       },
@@ -164,7 +211,7 @@ export function createTapetServer(backend: Backend = appBackend): Server {
     {
       name: 'panel_update',
       description:
-        "Changes a panel's settings. Fields you send replace those fields: title, retention, view, follow, mapping, css. The panel's data and pipe stay untouched. format, header, update and key are fixed: remove the panel and create a new one to change them.",
+        "Changes a panel's settings. Fields you send replace those fields: title, retention, view, follow, mapping, css, smart; null clears an optional one (e.g. smart: null removes the smart trait). The panel's data and pipe stay untouched. format, header, update and key are fixed: remove the panel and create a new one to change them.",
       schema: z.strictObject({ id: z.string(), ...panelChangesSchema.shape }),
       run: (args) => forward('panelUpdate', args),
     },
@@ -182,6 +229,20 @@ export function createTapetServer(backend: Backend = appBackend): Server {
       run: (args) => forward('channelWrite', args),
     },
     {
+      name: 'smart_run',
+      description:
+        "Runs a panel's smart trait now, even when nothing new arrived, and returns its output. Waits for a run in progress first.",
+      schema: z.strictObject({ panel: z.string() }),
+      run: (args) => forward('smartRun', args),
+    },
+    {
+      name: 'smart_read',
+      description:
+        "Returns a panel's latest smart outputs (last N, default 1), oldest first, with their time, model, tokens and any error.",
+      schema: z.strictObject({ panel: z.string(), last: z.int().min(1).optional() }),
+      run: (args) => forward('smartRead', args),
+    },
+    {
       name: 'session_attach',
       description:
         'Reconnects to an earlier tapet session by its id, whether it is live or ended. Fails if another live connection holds it. After a harness restart, use this with the id you recorded.',
@@ -193,8 +254,12 @@ export function createTapetServer(backend: Backend = appBackend): Server {
 
         const address = await backend.attachSession(args.session)
         session?.detach()
-        session = await attachSession(address)
-        return textResult({ session: session.id })
+        session = await connect(address)
+        const notices = configNotices
+        configNotices = []
+        return textResult(
+          notices.length > 0 ? { session: session.id, notices } : { session: session.id },
+        )
       },
     },
     {
@@ -204,10 +269,27 @@ export function createTapetServer(backend: Backend = appBackend): Server {
       schema: noArguments,
       async run() {
         const current = requireSession()
-        const result = fromRpc(await current.rpc('sessionEnd'), current.id)
+        const ended = result(await current.rpc('sessionEnd'), current.id)
         current.detach()
         session = undefined
-        return result
+        return ended
+      },
+    },
+    {
+      name: 'models_get',
+      description:
+        'Lists the models configured for smart panels ("provider/model") and the default one. API keys never appear here.',
+      schema: noArguments,
+      async run() {
+        const { config, issues } = await readConfig()
+        const models = { models: config.models, default_model: config.default_model ?? null }
+        const hint =
+          config.models.length === 0
+            ? { hint: 'no models are configured yet; docs_get("config") shows how to add them' }
+            : {}
+        const notices =
+          issues.length > 0 ? { notices: issues.map((issue) => `tapet config: ${issue}`) } : {}
+        return textResult({ ...models, ...hint, ...notices })
       },
     },
     {

@@ -13,9 +13,15 @@
     "check": "svelte-check --tsconfig ./tsconfig.web.json"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.92",
+    "@ai-sdk/google": "^4.0.108",
+    "@ai-sdk/openai": "^4.0.105",
     "@tapet/core": "workspace:*",
     "@tapet/protocol": "workspace:*",
-    "ansi_up": "^6.0.6"
+    "ai": "^7.0.157",
+    "ansi_up": "^6.0.6",
+    "dompurify": "^3.4.17",
+    "marked": "^18.1.2"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

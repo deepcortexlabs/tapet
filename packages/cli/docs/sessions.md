@@ -4,7 +4,7 @@ Your first `window_update` creates a tapet session with its own window and retur
 
 ## Reconnecting
 
-When your MCP connection closes (your harness restarted, or you ended the conversation), the session ends: its panels stay visible but stop updating, and its pipes are closed. To continue, call `session_attach({ session: "<id>" })`. The session comes back to life; restart your pipes yourself.
+When your MCP connection closes (your harness restarted, or you ended the conversation), the session ends: its panels stay visible but stop updating, their title-bar dots show it, and its pipes are closed. If the user's config sets `ended_panels` to `remove`, the window closes instead and the session can't be reattached. To continue, call `session_attach({ session: "<id>" })`. The session comes back to life; restart your pipes yourself.
 
 `session_attach` fails if another live connection holds the session.
 

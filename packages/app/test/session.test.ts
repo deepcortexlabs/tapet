@@ -2,6 +2,7 @@ import { request } from 'node:http'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { MockLanguageModelV4 } from 'ai/test'
 import { afterEach, expect, it } from 'vitest'
 import type {
   RpcMethod,
@@ -77,6 +78,18 @@ function fakeWindow() {
   return { port, received, added }
 }
 
+const mockModel = new MockLanguageModelV4({
+  doGenerate: async () => ({
+    content: [{ type: 'text', text: '**all quiet**' }],
+    finishReason: { unified: 'stop', raw: undefined },
+    usage: {
+      inputTokens: { total: 7, noCache: 7, cacheRead: undefined, cacheWrite: undefined },
+      outputTokens: { total: 3, text: 3, reasoning: undefined },
+    },
+    warnings: [],
+  }),
+})
+
 async function startSession() {
   const home = await mkdtemp(join(tmpdir(), 'tapet-session-'))
   const window = fakeWindow()
@@ -88,6 +101,17 @@ async function startSession() {
       if (message.type === 'showWindow' && !opened) {
         opened = true
         queueMicrotask(() => session.handleMain({ type: 'windowOpened' }, window.port))
+      }
+
+      if (message.type === 'capCheck') {
+        const reply = {
+          type: 'cap',
+          requestId: message.requestId,
+          allowed: true,
+          used: 0,
+          cap: 100,
+        } as const
+        queueMicrotask(() => session.handleMain(reply))
       }
 
       if (message.type === 'screenshot') {
@@ -104,6 +128,7 @@ async function startSession() {
     logPath: join(home, 's_test.log'),
     main,
     renderTimeoutMs: 500,
+    modelFor: () => mockModel,
   })
   running.push(session)
   const url = await session.listen()
@@ -278,4 +303,81 @@ it('screenshots a panel by its place in the window', async () => {
     requestId: expect.any(Number),
     rect: { x: 10, y: 20, width: 300, height: 200 },
   })
+})
+
+const CONFIG = {
+  providers: {},
+  models: ['openai/fake'],
+  default_model: 'openai/fake',
+  smart_input_tokens: 50_000,
+  window_focus: 'never',
+  ended_panels: 'keep',
+}
+
+it('runs a smart panel on piped data and shows its output', async () => {
+  const { url, sent, window } = await startSession()
+  const { attachment } = await attach(url)
+  await rpc(url, attachment, 'sessionConfigure', { config: CONFIG })
+  await rpc(url, attachment, 'windowUpdate', { name: 'logs' })
+  const created = await rpc(url, attachment, 'panelCreate', {
+    id: 'log',
+    title: 'Log',
+    preset: 'log',
+    smart: { prompt: 'Summarize', every: { items: 2 } },
+  })
+  const { channel } = (created as { result: { channel: string } }).result
+  await pipe(channel, 'one\ntwo\n')
+
+  const latest = () =>
+    window.received.flatMap((message) =>
+      message.type === 'smart' && message.smart?.latest ? [message.smart.latest] : [],
+    )
+  await until(() => latest().length > 0)
+  expect(latest().at(-1)).toMatchObject({ text: '**all quiet**', tokens: 10 })
+  expect(sent).toContainEqual({ type: 'tokensUsed', tokens: 10 })
+  expect(await rpc(url, attachment, 'smartRead', { panel: 'log' })).toMatchObject({
+    ok: true,
+    result: { outputs: [{ text: '**all quiet**' }] },
+  })
+})
+
+it('refuses smart models the config does not list', async () => {
+  const { url } = await startSession()
+  const { attachment } = await attach(url)
+  await rpc(url, attachment, 'sessionConfigure', { config: CONFIG })
+  await rpc(url, attachment, 'windowUpdate', { name: 'logs' })
+  const response = await rpc(url, attachment, 'panelCreate', {
+    id: 'log',
+    title: 'Log',
+    preset: 'log',
+    smart: { prompt: 'Summarize', model: 'openai/other' },
+  })
+  expect(response).toMatchObject({ ok: false, error: { issues: [{ path: 'smart.model' }] } })
+})
+
+it('tells the window when pipes start and stop feeding a panel', async () => {
+  const { channel, window } = await attachedWithLog()
+  await pipe(channel, 'a\n')
+  const live = window.received.flatMap((message) =>
+    message.type === 'panelLive' ? [message.live] : [],
+  )
+  expect(live).toEqual([true, false])
+})
+
+it('asks main to discard an ended session when the config removes ended panels', async () => {
+  const { url, sent } = await startSession()
+  const first = await attach(url)
+  await rpc(url, first.attachment, 'sessionConfigure', {
+    config: { ...CONFIG, ended_panels: 'remove' },
+  })
+  first.detach()
+  await until(() => sent.some((message) => message.type === 'discardSelf'))
+})
+
+it('takes focus when the config asks for it', async () => {
+  const { url, sent } = await startSession()
+  const { attachment } = await attach(url)
+  await rpc(url, attachment, 'sessionConfigure', { config: { ...CONFIG, window_focus: 'open' } })
+  await rpc(url, attachment, 'windowUpdate', { name: 'logs' })
+  expect(sent).toContainEqual(expect.objectContaining({ type: 'showWindow', focus: true }))
 })

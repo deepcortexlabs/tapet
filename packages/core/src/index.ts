@@ -22,6 +22,7 @@ export type {
   PanelSettings,
   PresetName,
   Retention,
+  SmartSettings,
   UpdateMode,
   ViewType,
   WindowSettings,

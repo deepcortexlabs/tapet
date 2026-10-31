@@ -5,6 +5,7 @@ import { appendFile, mkdir } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { dirname } from 'node:path'
+import type { LanguageModel } from 'ai'
 import {
   createDecoder,
   createStore,
@@ -26,10 +27,13 @@ import type {
   RpcMethod,
   RpcRequest,
   RpcResponse,
+  SessionConfig,
   SessionToMain,
   SessionToWindow,
   WindowToSession,
 } from '@tapet/protocol'
+import { modelFor as providerModel } from './providers.ts'
+import { createSmart } from './smart.ts'
 
 export interface MainLink {
   send(message: SessionToMain): void
@@ -48,6 +52,8 @@ export interface SessionOptions {
   main: MainLink
   // How long panel_create and panel_update wait for the window to confirm a render.
   renderTimeoutMs?: number
+  // Turns "provider/model" into a model for smart runs; tests pass a mock.
+  modelFor?: (config: SessionConfig, id: string) => LanguageModel
 }
 
 export interface Session {
@@ -90,6 +96,18 @@ export function createSession(options: SessionOptions): Session {
   let address = ''
   let requestCounter = 0
   let windowWaiters: Array<() => void> = []
+  // Sent by `tapet mcp` right after it attaches; these defaults hold until then.
+  let config: SessionConfig = {
+    providers: {},
+    models: [],
+    smart_input_tokens: 50_000,
+    window_focus: 'never',
+    ended_panels: 'keep',
+  }
+  const capRequests = new Map<
+    number,
+    (state: { allowed: boolean; used: number; cap: number }) => void
+  >()
   const renders = new Map<string, Array<(error?: string) => void>>()
   const geometryRequests = new Map<number, (geometry?: Geometry) => void>()
   const screenshots = new Map<number, (result: { png?: Uint8Array; error?: string }) => void>()
@@ -112,6 +130,23 @@ export function createSession(options: SessionOptions): Session {
     notices.push(message)
     log('notice', { message })
   }
+
+  const smart = createSmart({
+    config: () => config,
+    modelFor: (model) => (options.modelFor ?? providerModel)(config, model),
+    capCheck: () => {
+      requestCounter += 1
+      const requestId = requestCounter
+      return new Promise((resolve) => {
+        capRequests.set(requestId, resolve)
+        main.send({ type: 'capCheck', requestId })
+      })
+    },
+    tokensUsed: (tokens) => main.send({ type: 'tokensUsed', tokens }),
+    update: (panelId, view) => postNow({ type: 'smart', panel: panelId, smart: view }),
+    notice,
+    log,
+  })
 
   function flush() {
     flushTimer = undefined
@@ -141,12 +176,22 @@ export function createSession(options: SessionOptions): Session {
   }
 
   function snapshotOf(panel: Panel): PanelSnapshot {
-    return { settings: panel.settings, entries: panel.store.entries() }
+    const view = smart.view(panel.settings.id)
+    const snapshot = {
+      settings: panel.settings,
+      entries: panel.store.entries(),
+      live: panel.pipes.size > 0,
+    }
+    return view ? { ...snapshot, smart: view } : snapshot
+  }
+
+  function setLive(panel: Panel) {
+    postNow({ type: 'panelLive', panel: panel.settings.id, live: panel.pipes.size > 0 })
   }
 
   // Creates, updates or reopens the window. Resolves once it's open and has the current state.
-  function showWindow(): Promise<void> {
-    main.send({ type: 'showWindow', window, frozen })
+  function showWindow(focus: boolean): Promise<void> {
+    main.send({ type: 'showWindow', window, frozen, focus })
     if (port) {
       postNow({ type: 'window', window })
       return Promise.resolve()
@@ -161,10 +206,14 @@ export function createSession(options: SessionOptions): Session {
   // already holds the latest state.
   async function ensureWindow(): Promise<boolean> {
     if (port) {
+      if (config.window_focus === 'update') {
+        main.send({ type: 'focusWindow' })
+      }
+
       return false
     }
 
-    await showWindow()
+    await showWindow(config.window_focus !== 'never')
     return true
   }
 
@@ -301,15 +350,21 @@ export function createSession(options: SessionOptions): Session {
       }
 
       panel.pipes.clear()
+      setLive(panel)
     }
 
+    smart.pause()
     main.send({ type: 'frozen', frozen: true })
     postNow({ type: 'frozen', frozen: true })
     log('session ended', { reason })
+    if (config.ended_panels === 'remove') {
+      main.send({ type: 'discardSelf' })
+    }
   }
 
   function unfreeze() {
     frozen = false
+    smart.resume()
     main.send({ type: 'frozen', frozen: false })
     postNow({ type: 'frozen', frozen: false })
     log('session resumed')
@@ -340,6 +395,7 @@ export function createSession(options: SessionOptions): Session {
         ignoreInvalid: ignoreMalformed,
       })
       queue(panel.settings.id, applied.change)
+      smart.onChange(panel.settings.id, applied.change)
       if (applied.error) {
         return applied.error.message
       }
@@ -362,7 +418,9 @@ export function createSession(options: SessionOptions): Session {
 
       window = settings
       log('window updated', { window })
-      await showWindow()
+      await showWindow(
+        config.window_focus === 'update' || (config.window_focus === 'open' && !port),
+      )
       return { session: id }
     },
 
@@ -411,6 +469,11 @@ export function createSession(options: SessionOptions): Session {
         )
       }
 
+      const modelIssue = smartModelIssue(settings)
+      if (modelIssue) {
+        throw new RpcError('invalid panel settings', [modelIssue])
+      }
+
       const panel: Panel = {
         settings,
         store: createStore(settings),
@@ -419,6 +482,7 @@ export function createSession(options: SessionOptions): Session {
       }
       panels.set(settings.id, panel)
       channels.set(panel.channel, panel)
+      smart.set(settings.id, settings.smart, panel.store)
       log('panel created', { settings })
       const rendered = waitForRender(settings.id)
       if (!(await ensureWindow())) {
@@ -443,11 +507,17 @@ export function createSession(options: SessionOptions): Session {
         throw new RpcError('invalid panel settings', issues)
       }
 
+      const modelIssue = smartModelIssue(settings)
+      if (modelIssue) {
+        throw new RpcError('invalid panel settings', [modelIssue])
+      }
+
       if (JSON.stringify(settings.retention) !== JSON.stringify(panel.settings.retention)) {
         queue(settings.id, panel.store.setRetention(settings.retention, Date.now()))
       }
 
       panel.settings = settings
+      smart.set(settings.id, settings.smart, panel.store)
       log('panel updated', { settings })
       const rendered = waitForRender(settings.id)
       if (!(await ensureWindow())) {
@@ -471,6 +541,7 @@ export function createSession(options: SessionOptions): Session {
       panels.delete(panel.settings.id)
       channels.delete(panel.channel)
       queued.delete(panel.settings.id)
+      smart.remove(panel.settings.id)
       log('panel removed', { id: panel.settings.id })
       if (!(await ensureWindow())) {
         postNow({ type: 'panelRemoved', id: panel.settings.id })
@@ -502,6 +573,70 @@ export function createSession(options: SessionOptions): Session {
       freeze('session_end')
       return { session: id }
     },
+
+    async sessionConfigure(params) {
+      if (!isRecord(params) || !isRecord(params.config)) {
+        throw new RpcError('config is missing')
+      }
+
+      config = params.config as unknown as SessionConfig
+      // Never the keys: only which providers have settings.
+      log('configured', {
+        providers: Object.keys(config.providers),
+        models: config.models,
+        default_model: config.default_model,
+      })
+      return { session: id }
+    },
+
+    async smartRun(params) {
+      const panel = smartPanelFor(params)
+      return await smart.run(panel.settings.id)
+    },
+
+    async smartRead(params) {
+      const panel = smartPanelFor(params)
+      const last =
+        isRecord(params) && typeof params.last === 'number' && params.last >= 1
+          ? Math.floor(params.last)
+          : 1
+      return { outputs: smart.read(panel.settings.id, last) }
+    },
+  }
+
+  function smartPanelFor(params: unknown): Panel {
+    const panel = panelFor(params, 'panel')
+    if (!smart.has(panel.settings.id)) {
+      throw new RpcError(
+        `panel "${panel.settings.id}" has no smart trait; add one with panel_update`,
+      )
+    }
+
+    return panel
+  }
+
+  // A smart trait needs a model that the config lists.
+  function smartModelIssue(settings: PanelSettings): Issue | undefined {
+    if (!settings.smart) {
+      return undefined
+    }
+
+    const model = settings.smart.model ?? config.default_model
+    if (!model) {
+      return {
+        path: 'smart.model',
+        message: 'no model given, and your tapet config has no default_model (docs_get "config")',
+      }
+    }
+
+    if (!config.models.includes(model)) {
+      return {
+        path: 'smart.model',
+        message: `model "${model}" isn't in your tapet config; models_get lists the configured models`,
+      }
+    }
+
+    return undefined
   }
 
   function handlePipe(
@@ -525,11 +660,13 @@ export function createSession(options: SessionOptions): Session {
     let failed = false
     let skipped = 0
     panel.pipes.add(req)
+    setLive(panel)
     log('pipe opened', { panel: panelId })
 
     const fail = (problem: string) => {
       failed = true
       panel.pipes.delete(req)
+      setLive(panel)
       const message = `malformed data in a pipe into panel "${panelId}": ${problem}`
       notice(`a pipe into panel "${panelId}" stopped. ${message}`)
       res.setHeader('connection', 'close')
@@ -563,12 +700,14 @@ export function createSession(options: SessionOptions): Session {
       }
 
       panel.pipes.delete(req)
+      setLive(panel)
       log('pipe closed', { panel: panelId, skipped })
       reply(res, 200, { panel: panelId, skipped })
     })
 
     req.on('error', () => {
       panel.pipes.delete(req)
+      setLive(panel)
     })
   }
 
@@ -730,6 +869,12 @@ export function createSession(options: SessionOptions): Session {
         return
       }
 
+      if (message.type === 'cap') {
+        capRequests.get(message.requestId)?.(message)
+        capRequests.delete(message.requestId)
+        return
+      }
+
       if (message.type === 'screenshot') {
         screenshots.get(message.requestId)?.(message)
         screenshots.delete(message.requestId)
@@ -737,6 +882,7 @@ export function createSession(options: SessionOptions): Session {
     },
 
     async close() {
+      smart.pause()
       clearInterval(trimTimer)
       clearTimeout(flushTimer)
       server.closeAllConnections()

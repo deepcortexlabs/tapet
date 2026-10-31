@@ -32,7 +32,8 @@ Without a preset, set `format`, `update` and `view` yourself. See `formats` and 
 - `follow`: keep the newest data in view. On by default for `append` panels whose view supports it.
 - `mapping`: which data fields go where, per view. tapet never guesses.
 - `css`: styles for this panel only (see `css`).
+- `smart`: an LLM that summarizes the panel's new data (see `smart`).
 
 ## Changing
 
-`panel_update({ id, ...fields })` replaces the fields you send and keeps the rest. The panel's data and pipe stay untouched. tapet rejects contradictory settings and explains why, e.g. `upsert` without a `key`.
+`panel_update({ id, ...fields })` replaces the fields you send and keeps the rest; `null` clears an optional setting such as `css` or `smart`. The panel's data and pipe stay untouched. tapet rejects contradictory settings and explains why, e.g. `upsert` without a `key`.

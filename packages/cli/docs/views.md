@@ -1,6 +1,6 @@
 # Views
 
-Views available in this version: **log**. More are coming (table, chart, graph, map, document, gauge, custom).
+Views available in this version: **log**. Any panel can also carry a smart output (see `smart`). More are coming (table, chart, graph, map, document, gauge, custom).
 
 ## log
 

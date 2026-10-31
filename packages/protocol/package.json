@@ -7,6 +7,7 @@
     "./messages": "./src/messages.ts"
   },
   "dependencies": {
-    "@tapet/core": "workspace:*"
+    "@tapet/core": "workspace:*",
+    "zod": "^4.6.7"
   }
 }

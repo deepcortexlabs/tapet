@@ -8,6 +8,10 @@ You arrange and style the window with real CSS. The user can't rearrange anythin
 #tapet                                  the window's root
   section.tapet-panel[data-panel=<id>]  one per panel, in creation order
     header.tapet-title                  the panel's title bar
+      span.tapet-dot[data-state]        live, idle or ended
+      span.tapet-title-text             the title
+      span.tapet-smart-status           the smart trait's status, when not idle
+    div.tapet-smart-output              the latest smart output, as markdown
     div.tapet-body                      fills the rest of the panel
       div.tapet-view                    the view
 ```

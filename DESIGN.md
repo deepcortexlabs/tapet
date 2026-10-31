@@ -52,7 +52,7 @@ agent's shell:  cmd | tapet -c <addr> ──localhost HTTP──────┘
   - calls that session's background process through a small internal HTTP API: `GET /attach`, a long-lived stream that keeps the session live while it's open, and `POST /rpc`.
 - **Version mismatch:** only a change to the internal protocol version counts, not every release. When `tapet mcp` finds a running app speaking another version, tool calls fail with "quit tapet (Cmd-Q) and retry".
 - **Security:** localhost only, per-session tokens. Requests carrying an `Origin` header are refused, which keeps browsers out. Each channel token belongs to exactly one session.
-- **tapet's home** is `~/.tapet`, or `TAPET_HOME`, which isolates tests. It holds the control socket (`app.sock`, a named pipe on Windows), `logs/`, the downloaded `electron/`, `preferences.json`, and Electron's own data (`app-data/`). The single-instance lock is therefore per home.
+- **tapet's home** is `~/.tapet`, or `TAPET_HOME`, which isolates tests. It holds the control socket (`app.sock`, a named pipe on Windows), `logs/`, the downloaded `electron/`, `preferences.json`, today's token use (`usage.json`), and Electron's own data (`app-data/`). The single-instance lock is therefore per home.
 - **Electron binary:** tapet downloads it itself (with `@electron/get`, cached) rather than relying on the `electron` package's install script, which pnpm 10 skips. `tapet setup` downloads in the foreground. If Electron is missing, tool calls reply with the setup command and the agent runs it; downloading inside a tool call would hit MCP timeouts.
 - **Everything is HTTP,** so remote agents can come later without a redesign.
 
@@ -66,7 +66,8 @@ agent's shell:  cmd | tapet -c <addr> ──localhost HTTP──────┘
   - its panels freeze (they stay but stop updating) by default, or are removed if config says so;
   - tapet closes that session's channels, so pipes the agent left running die on their next write;
   - smart runs stop.
-- **Ended-session indicator:** for now, an ended session's window title gets " (ended)". This is interim until open question #2 (status display) is answered.
+- **Status in title bars:** each panel's title bar shows a dot for live (a pipe is open), idle, or ended, plus its smart status (running, cap reached, error) when not idle.
+- **`ended_panels: remove`** in the config closes an ended session's window and discards the session instead of freezing it.
 - **Frozen panels** can't be removed by hand. The user asks an agent to remove them, and that agent has to attach to the session first.
 - **Closing an ended session's window** asks the user to Discard or Keep the session, with a "Remember this choice" checkbox that is unchecked by default. A remembered answer is stored in `preferences.json`, a file the app writes; the config file stays the user's. Discarding frees the session's process, and reattaching fails after that. Quitting tapet never asks.
 - **Window lifetime:** windows stay open until the user quits the app, and the app keeps running until then. A relaunched app starts empty. Resuming is the agent's job: the instructions tell it to keep its own record, and `window_get` returns the current setup.
@@ -176,14 +177,17 @@ smart: {
 ```
 
 - **Triggers:** `every` (N new items or T seconds), and the agent calling `smart_run`.
-- **Input:** the last `history` outputs plus the items that arrived since the last run. The agent shapes the input through the pipe (e.g. `grep` upstream), the prompt and the frequency.
+- **Input:** the last `history` outputs plus the items that are new since the last successful run: entries whose sequence number is higher, so updated rows in `upsert` and `patch` panels count too. The agent shapes the input through the pipe (e.g. `grep` upstream), the prompt and the frequency.
 - **Skipping:** scheduled runs with no new items are skipped; `smart_run` always runs. A trigger that fires while a run is in progress is skipped, and the next run covers everything since the last one.
-- **Token budget** (set in config):
-  - When the pending items would exceed the budget, the run starts early.
+- **Token budget** (`smart_input_tokens` in config; tokens are estimated at about 4 characters each):
+  - When the pending items would exceed the budget, the run starts early (only for panels with `every`).
   - If items still overflow (for example, a burst during a run), the overflow is split into chunks and summarized with the panel's model. The run gets those summaries in place of the dropped items, followed by the newest items that fit. These extra calls count toward the cap.
+  - At most 5 chunks are summarized per run. Anything older is skipped, and the run is told how many items that was, so a huge burst can't trigger hundreds of calls.
   - Past outputs that don't fit are dropped oldest-first.
-- **Output:** markdown inside the panel, in a documented element the agent positions with CSS. All outputs are kept for the panel's lifetime. `smart_read({ panel, last })` returns the last N outputs, and `smart_run` returns its own output.
-- **Cap:** one global daily cap, counted in tokens, set in config. The default is 2M.
+- **Output:** the latest output, as sanitized markdown, inside the panel in `.tapet-smart-output`, which the agent can position with CSS. All outputs are kept for the panel's lifetime. `smart_read({ panel, last })` returns the last N outputs, and `smart_run` returns its own output.
+- **Errors** (a missing key, an unknown model, a network failure) become the run's output and the panel's status, and a notice in the agent's next tool result. Repeats of the same failure don't add notices.
+- **Cap:** one global daily cap, counted in tokens, set in the user's config (default 2M). The main process keeps today's total in `usage.json`, keyed by the local date, so it resets at local midnight and survives restarts. Sessions check it before each run and report tokens after; runs already in flight may overshoot slightly.
+- **Removing it:** `panel_update({ id, smart: null })`. `null` clears any optional panel setting.
 - **Models:** listed in config as `provider/model` (e.g. `google/gemini-3`), with no aliases. `models_get` returns the list.
 - **Isolation:** keys and LLM calls stay in the session's background process and never reach panel code.
 - **Frozen sessions:** runs stop when the session freezes.
@@ -195,10 +199,10 @@ smart: {
   - one global stylesheet (the `css` field of `window_update`) plus each panel's own `css`, which applies only inside that panel (wrapped in `@scope ([data-panel="<id>"])`);
   - a documented, stable DOM: the root is `#tapet`, each panel is `[data-panel="<id>"]` in creation order, there are documented classes for the title bar, body and smart output, and theme tokens are CSS variables;
   - CSS is scoped per window.
-- **Window:** `name` is required. The agent sets size, position and always-on-top through `window_update`, and brings the window to the front with `window_focus`. By default, windows never take focus on their own (configurable).
-- **Panel titles** are required and shown in a title bar that CSS can hide.
+- **Window:** `name` is required. The agent sets size, position and always-on-top through `window_update`, and brings the window to the front with `window_focus`. The config's `window_focus` decides whether windows take focus on their own: `never` (default), `open`, or `update` (on every agent window or panel change).
+- **Panel titles** are required and shown in a title bar that CSS can hide, along with the status dot and smart status.
 - **Theme:** follows the OS light/dark setting; agent CSS can override it.
-- **App presence:** a Dock app by default; a menu-bar mode is configurable.
+- **App presence:** a Dock app by default. With `app_presence: menu_bar`, macOS hides the Dock icon, every OS gets a tray icon whose menu lists the open windows plus "Quit tapet", and windows stay out of the taskbar.
 - **Reading the window back:**
   - `window_get` returns the setup as declared;
   - `window_inspect` returns computed geometry: panel boxes, overflow, zero-size panels;
@@ -224,7 +228,7 @@ smart: {
 | `models_get`        | List the configured models.                                                                                                                               |
 | `docs_get`          | Usage docs by topic.                                                                                                                                      |
 
-- **Field rule:** fields you send replace those fields; fields you don't send stay as they are. There's no deeper merging.
+- **Field rule:** fields you send replace those fields; fields you don't send stay as they are; `null` clears an optional setting. There's no deeper merging.
 - **Naming:** object-first snake_case. Dots aren't allowed, because Anthropic's and OpenAI's APIs only accept letters, digits, `_` and `-` in tool names.
 
 ## CLI
@@ -262,18 +266,23 @@ Agents get the full-path form of these commands from tool results. MCP controls 
 
 ## Config
 
-- **One file holds everything,** keys included, wherever the user wants it: cleartext, or a 1Password-mounted env file. The format is `.env` or JSON, and the path comes from `TAPET_CONFIG`.
-- **1Password mounts** are named pipes, so tapet reads the file as a stream, once when a session starts, with no size checks and no file watching.
-- **Plain environment variables** also work, since AI SDK reads `OPENAI_API_KEY` and the like. However, the shared app only sees the environment of the session that launched it.
+- **Layers,** lowest to highest; a setting in a higher layer replaces the same setting below it, and each provider counts as one setting (a project can swap the OpenAI key without dropping the user's Anthropic key):
+  1. environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GOOGLE_GENERATIVE_AI_API_KEY`, and `TAPET_*` names;
+  2. the user's file: `TAPET_CONFIG` if set, otherwise `~/.config/tapet/config.json`, or `config.env` there;
+  3. the project's file: `.tapet/config.json`, or `.tapet/config.env`, in `tapet mcp`'s working directory.
+- **Formats:** JSON with snake_case settings, or `.env` with the environment names (`TAPET_MODELS` is comma-separated). Keys may be cleartext, or the file may be a 1Password-mounted `.env`.
+- **Reading:** files are read as streams, which works with 1Password's named pipes. `tapet mcp` reads every layer, with its own environment and working directory, each time a session is created or reattached, and hands the session process its settings over the internal API. So the shared app never depends on the environment of the session that launched it.
+- **App-wide settings** (`daily_token_cap`, `app_presence`) come only from the user's layers, which the app reads when it starts. A project can't raise the cap.
+- **Problems** are reported as notices on the next tool result; tapet ignores the broken settings and keeps the rest.
 - **Contents:**
-  - providers and keys
-  - allowed models (`provider/model`) and the default
-  - daily token cap (default 2M)
-  - token budget for a smart run's input
-  - base map (default OpenFreeMap)
-  - window focus (default: never take focus)
-  - frozen panels (default: stay; or removed)
-  - app presence (default: Dock)
+  - `providers`: `anthropic`, `openai` and `google`, each with `api_key`; `openai` also takes `base_url`, for proxies and local OpenAI-compatible servers (tapet then uses the chat completions API, and the key is optional)
+  - `models` (`provider/model`) and `default_model` (defaults to the first model)
+  - `smart_input_tokens` (default 50,000)
+  - `window_focus`: `never` (default), `open` or `update`
+  - `ended_panels`: `keep` (default) or `remove`
+  - `daily_token_cap` (default 2M)
+  - `app_presence`: `dock` (default) or `menu_bar`
+  - the base map default comes with the map view
 
 ## Diagnostics
 
@@ -318,10 +327,7 @@ Agents get the full-path form of these commands from tool results. MCP controls 
 
 ## Open questions
 
-1. **Daily cap:** does it reset at local midnight, or count a rolling 24 hours? Proposed behavior when hit: smart runs stop, the affected panels show "cap reached", and the agent sees it in its next tool result.
-2. **Status display:** should panel title bars show state (live, idle, frozen) and smart status (running, cap reached), and should the window show today's token use against the cap?
-3. **Evals:** which models? Proposed: Claude (Opus, Sonnet, Haiku), GPT and Gemini running the use cases above with synthetic data, possibly plus a small local model.
-4. **Default config location:** used when `TAPET_CONFIG` isn't set. `~/.tapet/config.json` would fit tapet's home.
+1. **Evals:** which models? Proposed: Claude (Opus, Sonnet, Haiku), GPT and Gemini running the use cases above with synthetic data, possibly plus a small local model.
 
 ## Example
 
