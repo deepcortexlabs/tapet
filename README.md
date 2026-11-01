@@ -21,6 +21,7 @@ What people use it for:
 - **Charts:** time series with zoom and a readout on hover, or any Vega-Lite spec.
 - **Graphs:** dependency trees, call graphs and any edge list, up to a million nodes.
 - **Maps:** GeoJSON features over a base map, e.g. results by town, colored by their numbers.
+- **Anything else:** the agent's own code, e.g. with d3 or three.js from a package CDN, in a sandboxed frame.
 - **Gauges:** the latest value of a metric, as a number, dial or bar.
 - **Layout in plain CSS:** the agent arranges panels with CSS it already knows. It checks the result with a screenshot.
 
@@ -38,20 +39,20 @@ agent's shell:   <command> | <pipe> ──────▶ a panel in that window
   - how long items are kept;
   - which view shows them.
 - **One app, separate sessions:** one tapet app serves every agent, but each agent session gets its own window and background process. Sessions are kept fully apart.
-- **Everything stays on your machine:** tapet listens on localhost only, with a token per session. Two things reach the network: smart panels send panel data to the model provider you configure, and map panels load their base map from OpenFreeMap. The window can't load from any other host.
+- **Everything stays on your machine:** tapet listens on localhost only, with a token per session. Three things reach the network: smart panels send panel data to the model provider you configure, map panels load their base map from OpenFreeMap, and custom views can import packages from a few package CDNs. Nothing in the window can load from any other host.
 
 ### Views
 
-| View       | Status    | Shows                                                  |
-| ---------- | --------- | ------------------------------------------------------ |
-| `log`      | available | lines, with terminal colors, search and follow         |
-| `table`    | available | rows, with sorting and virtual scrolling               |
-| `document` | available | Markdown (code, math, Mermaid), HTML, text or an image |
-| `gauge`    | available | the latest value as a number, dial or bar              |
-| `chart`    | available | time series (uPlot) and any Vega-Lite spec             |
-| `graph`    | available | nodes and edges                                        |
-| `map`      | available | GeoJSON features on a map                              |
-| `custom`   | coming    | the agent's own code in a sandbox                      |
+| View       | Shows                                                  |
+| ---------- | ------------------------------------------------------ |
+| `log`      | lines, with terminal colors, search and follow         |
+| `table`    | rows, with sorting and virtual scrolling               |
+| `document` | Markdown (code, math, Mermaid), HTML, text or an image |
+| `gauge`    | the latest value as a number, dial or bar              |
+| `chart`    | time series (uPlot) and any Vega-Lite spec             |
+| `graph`    | nodes and edges                                        |
+| `map`      | GeoJSON features on a map                              |
+| `custom`   | the agent's own code in a sandbox                      |
 
 ## Setup
 

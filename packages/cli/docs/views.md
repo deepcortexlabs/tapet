@@ -1,6 +1,6 @@
 # Views
 
-Views available in this version: **log**, **table**, **chart**, **graph**, **map**, **document** and **gauge**. Coming next: custom. Any panel can also carry a smart output (see `smart`).
+Views: **log**, **table**, **chart**, **graph**, **map**, **document**, **gauge** and **custom**. Any panel can also carry a smart output (see `smart`).
 
 A view's own settings go in an object named after it, e.g. `{ view: "gauge", gauge: { value: "cpu", style: "dial", max: 100 } }`. They can change at any time with `panel_update`; sending the object replaces it whole. When `panel_update` switches to another view, the previous view's object is dropped.
 
@@ -109,7 +109,7 @@ Then pipe a whole file: `cat report.md | <pipe>`. Each pipe is one document.
   - `text`: shown as is, in a monospace font.
   - `image`: PNG, JPEG, GIF, WebP or SVG bytes, e.g. `cat chart.png | <pipe>`.
 - Documents are UTF-8.
-- The window doesn't load images from the network: in markdown and HTML, use `data:` URLs.
+- The window loads images only from tapet's allowed hosts (see `custom`); otherwise use `data:` URLs in markdown and HTML.
 
 ## gauge
 
@@ -125,3 +125,25 @@ Shows the latest value: `while true; do <read cpu> ; sleep 1; done | <pipe>`.
 - `gauge.unit`: shown after the value, e.g. `"%"` or `" ms"`.
 - `gauge.thresholds`: colors the value by the highest threshold it reached, e.g. `[{ at: 70, color: "orange" }, { at: 90, color: "red" }]`. Colors are CSS colors.
 - The number style also shows values that aren't numbers, e.g. a status word.
+
+## custom
+
+Your own code draws the panel, for anything the other views don't do.
+
+```
+panel_create({ id: "flow", title: "Flow", format: "ndjson", update: "append", view: "custom", custom: { code: "…" } })
+```
+
+- Accepts every format and update mode.
+- `custom.code`: JavaScript, run as a module in a sandboxed frame. It can `import` packages from cdn.jsdelivr.net, unpkg.com and esm.sh, e.g. `import * as d3 from 'https://esm.sh/d3@7'`. Nothing else is reachable: other hosts, tapet's window and the session are all off limits.
+- `custom.surface`: `dom` (the default), `canvas2d` or `webgl`.
+- The code gets a global `tapet`:
+  - `tapet.root`: the element to draw in, filling the panel.
+  - `tapet.canvas`: with `canvas2d` and `webgl`, a canvas that fills the panel, sized in device pixels. `tapet.gl`: with `webgl`, its WebGL 2 context.
+  - `tapet.entries()`: the panel's items in display order, each `{ key, seq, receivedAt, value }`.
+  - `tapet.onChange(listener)`: calls `listener({ added, updated, removed })` after each change, where `removed` holds keys. Returns a function that stops listening.
+  - `tapet.settings()` and `tapet.onSettings(listener)`: the panel's settings, and their changes.
+  - `tapet.size()`: `{ width, height, pixelRatio }`, in CSS pixels. `tapet.onResize(listener)` follows it.
+- The theme's variables (`--tapet-fg`, `--tapet-series-1`, …) are set inside the frame. The window's and the panel's CSS don't reach it.
+- Changing `custom.code` or `custom.surface` runs the new code in a fresh frame. Other settings reach it through `onSettings`.
+- An error the code throws while it starts fails the `panel_create` or `panel_update` that ran it. Later errors come back as notices and show in the panel.

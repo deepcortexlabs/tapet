@@ -2,6 +2,7 @@ import type { ViewType } from '@tapet/core'
 import { mount, unmount, type Component } from 'svelte'
 import type { Bridge, MountedView, ViewMount } from '../bridge.ts'
 import ChartView from './chart/ChartView.svelte'
+import CustomView from './custom/CustomView.svelte'
 import DocumentView from './document/DocumentView.svelte'
 import GaugeView from './gauge/GaugeView.svelte'
 import LogView from './log/LogView.svelte'
@@ -39,11 +40,15 @@ function lazyView(load: () => Promise<{ default: ViewComponent }>): ViewMount {
 
 function svelteView(component: ViewComponent): ViewMount {
   return (target, bridge) => {
-    const mounted = mount(component, { target, props: { bridge } })
+    // A component may export settled(), see MountedView.
+    const mounted = mount(component, { target, props: { bridge } }) as {
+      settled?: () => Promise<string | undefined>
+    }
     return {
       destroy: () => {
         void unmount(mounted)
       },
+      settled: () => mounted.settled?.() ?? Promise.resolve(undefined),
     }
   }
 }
@@ -54,6 +59,7 @@ const VIEWS: Partial<Record<ViewType, ViewMount>> = {
   chart: svelteView(ChartView),
   graph: lazyView(() => import('./graph/GraphView.svelte')),
   map: lazyView(() => import('./map/MapView.svelte')),
+  custom: svelteView(CustomView),
   document: svelteView(DocumentView),
   gauge: svelteView(GaugeView),
 }

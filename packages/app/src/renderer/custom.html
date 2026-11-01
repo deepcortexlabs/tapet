@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- A custom view's frame: the agent's code may run inline and import packages, but only from
+         tapet's allowed hosts. The frame is sandboxed without an origin, so it can't reach tapet. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: %TAPET_NETWORK_HOSTS%; style-src 'unsafe-inline' %TAPET_NETWORK_HOSTS%; img-src data: blob: %TAPET_NETWORK_HOSTS%; font-src data: %TAPET_NETWORK_HOSTS%; connect-src %TAPET_NETWORK_HOSTS%; worker-src blob: %TAPET_NETWORK_HOSTS%"
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      html,
+      body,
+      #root {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        color: var(--tapet-fg);
+        font: 13px var(--tapet-font);
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+    <!-- tapet:frame -->
+  </head>
+  <body></body>
+</html>

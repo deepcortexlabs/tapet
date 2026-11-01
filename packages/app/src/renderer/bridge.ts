@@ -13,6 +13,9 @@ export interface Bridge {
 
 export interface MountedView {
   destroy(): void
+  // For views that draw asynchronously, like custom views: resolves with the error of their latest
+  // render, if there was one.
+  settled?(): Promise<string | undefined>
 }
 
 export type ViewMount = (target: HTMLElement, bridge: Bridge) => MountedView

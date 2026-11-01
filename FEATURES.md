@@ -62,8 +62,9 @@ The official list of what tapet does today.
 - **map:** GeoJSON features (points, lines, polygons) over an OpenFreeMap base map, or none with `base_map: false`. The base map shows no country or region borders or names unless `borders` is on. A `color_by` scale with a legend, `colors`, `tooltip` properties and labels in `label_language`; zooms to the data when it first arrives.
 - **document:** `document.content` is `markdown` (highlighted code, KaTeX math, Mermaid diagrams), `html` (sanitized, no scripts, its styles stay inside it), `text` or `image`. `replace` shows the latest document; `append` stacks them.
 - **gauge:** the latest value as a number, dial or bar, with `min`, `max`, `unit` and color `thresholds`. `gauge.value` picks the field when items are objects.
+- **custom:** your JavaScript module in a sandboxed frame, with a `tapet` object for the panel's data, settings and size, on a `dom`, `canvas2d` or `webgl` surface. It can import packages from the allowed CDNs; an error while it starts fails the call that ran it.
 - **Right-to-left text:** log lines, table cells, and markdown and text documents read right to left when their text does.
-- **Allowed hosts only:** the window loads from the network only from tapet's allowed hosts: tiles.openfreemap.org, for base maps. Images in documents use `data:` URLs.
+- **Allowed hosts only:** the window and custom views load from the network only from tapet's allowed hosts: tiles.openfreemap.org (base maps), and cdn.jsdelivr.net, unpkg.com and esm.sh (packages for custom views).
 
 ## Smart trait
 

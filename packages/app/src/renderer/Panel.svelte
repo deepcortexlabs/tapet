@@ -35,8 +35,14 @@
       mounted = 'error' in result ? { type: view } : { type: view, view: result.view }
     }
 
+    // Views that draw asynchronously report their error once they've drawn.
     const error = failure
-    requestAnimationFrame(() => client.rendered(panel.id, error))
+    const shown = mounted.view
+    requestAnimationFrame(() => {
+      void (shown?.settled?.() ?? Promise.resolve(undefined)).then((late) =>
+        client.rendered(panel.id, error ?? late),
+      )
+    })
   })
 
   $effect(() => () => {

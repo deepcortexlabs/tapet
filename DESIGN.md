@@ -1,6 +1,6 @@
 # tapet — design
 
-> Status: agreed on 2026-10-31, before any code was written. Everything here is decided unless it appears under [Open questions](#open-questions).
+> Status: agreed on 2026-10-31, before any code was written, and kept up to date as decisions changed while building. Everything here is decided unless it appears under [Open questions](#open-questions). For what tapet does today, see [FEATURES.md](FEATURES.md).
 
 tapet (Hebrew טפט, "wallpaper") is a display that AI agents direct over MCP to show things to their user. The agent directs the display rather than piping data through itself: large data flows from its source straight into tapet and never enters the agent's context.
 
@@ -52,6 +52,7 @@ agent's shell:  cmd | tapet -c <addr> ──localhost HTTP──────┘
   - calls that session's background process through a small internal HTTP API: `GET /attach`, a long-lived stream that keeps the session live while it's open, and `POST /rpc`.
 - **Version mismatch:** only a change to the internal protocol version counts, not every release. When `tapet mcp` finds a running app speaking another version, tool calls fail with "quit tapet (Cmd-Q) and retry".
 - **Security:** localhost only, per-session tokens. Requests carrying an `Origin` header are refused, which keeps browsers out. Each channel token belongs to exactly one session.
+- **Network allowlist:** the window and custom views load only from a fixed list of hosts (`NETWORK_HOSTS`: `tiles.openfreemap.org` for base maps; `cdn.jsdelivr.net`, `unpkg.com` and `esm.sh` for packages custom views import). Their content security policies are generated from the list at build time, and a map's `base_map` must be on an allowed host. The list grows deliberately, one host at a time.
 - **tapet's home** is `~/.tapet`, or `TAPET_HOME`, which isolates tests. It holds the control socket (`app.sock`, a named pipe on Windows), `logs/`, the downloaded `electron/`, `preferences.json`, today's token use (`usage.json`), and Electron's own data (`app-data/`). The single-instance lock is therefore per home.
 - **Electron binary:** tapet downloads it itself (with `@electron/get`, cached) rather than relying on the `electron` package's install script, which pnpm 10 skips. `tapet setup` downloads in the foreground. If Electron is missing, tool calls reply with the setup command and the agent runs it; downloading inside a tool call would hit MCP timeouts.
 - **Everything is HTTP,** so remote agents can come later without a redesign.
@@ -77,7 +78,8 @@ agent's shell:  cmd | tapet -c <addr> ──localhost HTTP──────┘
 ## Getting data in
 
 - **The agent runs commands itself,** under its harness's permissions, and pipes the output into a panel's channel. Tapet never runs commands or reads files.
-- **Pipe command:** `panel_create` returns a ready-to-run command that uses the absolute path to tapet's own binary, e.g. `~/.npm/_npx/…/.bin/tapet -c 127.0.0.1:53211/ch_a1…`. It works without a global install, and its version always matches the app.
+- **Pipe command:** `panel_create` returns a ready-to-run command that runs tapet's pipe entry by absolute path, e.g. `…/node …/tapet/pipe-main.js -c 127.0.0.1:53211/c/…`. It works without a global install, and its version always matches the app.
+- **Shared outputs stay blocking:** the pipe entry loads only the pipe's own code, and the pipe never creates `process.stdout` or `process.stderr` (it streams stdin by hand, since `stream.pipe()` creates `process.stdout` to compare against it). Node makes the outputs it creates non-blocking for every process that shares them, so in `tee >(<pipe>) | …` the other writer would get EAGAIN and lose data.
 - **Channels:** one channel per panel. A channel is a plain HTTP endpoint.
 - **Output:** `tapet -c` prints nothing on success.
 - **Multiple pipes:** a channel accepts several pipes, one after another or at the same time. Each pipe is split into items on its own, and items are then ordered by when tapet received them.
@@ -110,30 +112,31 @@ Tapet tracks two more properties internally:
 
 ### Views
 
-| View       | Shows            | Notes                                                                                                                                                                                                                                                                                  |
-| ---------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `log`      | lines            | Terminal colors (ANSI), a search box, follow.                                                                                                                                                                                                                                          |
-| `table`    | rows             | Columns from the mapping, local sorting, virtual scrolling.                                                                                                                                                                                                                            |
-| `chart`    | series           | Two engines: **uPlot** with tapet's simple mapping (x, y, series; line/area/bar/points) for large time series, and **Vega-Lite** with a full spec for everything else.                                                                                                                 |
-| `graph`    | nodes and edges  | One WebGL view for every size, with force-directed and hierarchical layouts. The library will be picked by benchmark (sigma.js vs cosmos.gl at 1k, 100k and 1M nodes).                                                                                                                 |
-| `map`      | GeoJSON features | Built on MapLibre. Each item carries geometry and values; the agent joins them before piping. Base map: OpenFreeMap by default, configurable in config and per panel. RTL text plugin bundled. The agent sets the label language; the default is English, falling back to local names. |
-| `document` | one document     | The agent declares the content type: markdown (with Mermaid, code highlighting and math), html, text or image.                                                                                                                                                                         |
-| `gauge`    | one value        | A big number, a dial or a bar, with optional min/max and thresholds.                                                                                                                                                                                                                   |
-| `custom`   | anything         | Agent-written code on a DOM, 2D canvas or WebGL surface. Through the bridge it gets the panel's current items, live updates and size; there are no queries in v1. It may load libraries from the network: open for now, later limited to a predefined set.                             |
+| View       | Shows            | Notes                                                                                                                                                                                                                                                                                                                                                  |
+| ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `log`      | lines            | Terminal colors (ANSI), a search box, follow.                                                                                                                                                                                                                                                                                                          |
+| `table`    | rows             | Columns from `table.columns`, or from the CSV header or the fields in order of first appearance. Local sorting, virtual scrolling.                                                                                                                                                                                                                     |
+| `chart`    | series           | Two engines: **uPlot** (`chart.y`, `x`, `series`, `type`: line, area, bar or points) for large time series, and **Vega-Lite** with a full spec for everything else, fed through a dataset named `tapet`. Vega's expressions run in vega-interpreter, so the window needs no eval.                                                                      |
+| `graph`    | nodes and edges  | cosmos.gl for every size: a force layout on the GPU, or a hierarchical one (dagre, up to 3,000 nodes). cosmos.gl draws no labels, so tapet draws them on top. Picked by benchmark; see [Graph library](#graph-library).                                                                                                                                |
+| `map`      | GeoJSON features | Built on MapLibre. Each item carries geometry and values; the agent joins them before piping. Base map: OpenFreeMap by default (positron, or dark in dark mode), configurable per panel. MapLibre 6 draws right-to-left text itself, so there's no RTL plugin. The agent sets the label language; the default is English, falling back to local names. |
+| `document` | one document     | The agent declares the content type: markdown (with Mermaid, code highlighting and math), html, text or image. HTML is sanitized (no scripts) and rendered in a shadow root, so its styles stay inside it.                                                                                                                                             |
+| `gauge`    | one value        | A big number, a dial or a bar, with optional min/max and thresholds.                                                                                                                                                                                                                                                                                   |
+| `custom`   | anything         | Agent-written JavaScript module on a DOM, 2D canvas or WebGL surface, in a sandboxed frame without an origin, loaded from its own page with its own content security policy. Through the bridge it gets the panel's items, live updates, settings and size; there are no queries in v1. It may import packages from the allowed hosts only.            |
 
-OpenFreeMap is the default base map because the Google tile endpoint used in the election app isn't a public API, and OpenStreetMap's tile policy rules out heavy use by apps.
+OpenFreeMap is the default base map because the Google tile endpoint used in the election app isn't a public API, and OpenStreetMap's tile policy rules out heavy use by apps. The base map is **neutral by default**: no country or region borders or names unless the panel sets `map.borders`, so tapet takes no side where borders are disputed. Every OpenStreetMap-based provider shows the same borders, so the choice of provider doesn't change this; the style does.
 
 Other view settings:
 
-- **`mapping`:** which data fields go where. The agent always specifies it; tapet never guesses.
+- **View settings object:** each view's own settings live in an object named after it, e.g. `gauge: { value: "cpu", style: "dial", max: 100 }`. Only the current view's object is allowed, and switching views drops the previous one. Where a view can't know a field, the agent names it (`chart.y` is required); where the data says it, the view takes it from there (table columns, the graph's `id`, `source` and `target`).
 - **`follow`:** keeps the newest data in view. On by default for `append` panels whose view supports it (log, table, chart).
 - **Local interaction** (scroll, zoom, pan, hover, sort, search) is always on in built-in views and never reported to the agent.
-- **Same bridge for all views:** built-in views use the same bridge as `custom` views. A view receives a DOM element and the bridge. Through the bridge it gets the stored entries, then live changes: entries added, updated in place, or removed, by key.
+- **Same bridge for all views:** built-in views use the same bridge as `custom` views. A view receives a DOM element and the bridge. Through the bridge it gets the stored entries, then live changes: entries added, updated in place, or removed, by key. Custom views get it over `postMessage`, as the `tapet` object: `entries()`, `onChange()`, `settings()`, `onSettings()`, `size()`, `onResize()`, plus `root`, `canvas` or `gl` for their surface. Views report problems with their data through the bridge, and they reach the agent as notices.
+- **Loading:** views with large libraries load with the first panel that uses them: Vega-Lite, Mermaid, the graph view and the map view. The rest is bundled into the window. Measured with `bench/startup.ts`, a window with one log panel opens in about 265–285 ms with 1.4 MB of JavaScript, against 251 ms and 0.5 MB before the other views existed; bundling everything had reached 345 ms and 4 MB.
 - **RTL:** built-in views support right-to-left text, and the agent sets the direction in CSS. Log lines take their direction from their own text, so a Hebrew line reads right to left without any CSS.
 
 ### Presets
 
-A preset is a named bundle of settings. The agent names one and overrides any setting. Presets never include a mapping.
+A preset is a named bundle of settings. The agent names one and overrides any setting. Presets hold no field names, so e.g. `timeseries` needs `chart.y` from the agent.
 
 | Preset       | format                    | update                                         | view                | Other defaults |
 | ------------ | ------------------------- | ---------------------------------------------- | ------------------- | -------------- |
@@ -160,7 +163,7 @@ Which data each view accepts:
 | custom       | any           | any                   | no       |
 
 - **Contradictory settings** are rejected with an explanation. Examples: `upsert` without a `key`, `follow` on a `replace` panel, a graph view fed `lines`.
-- **First render:** `panel_create` and `panel_update` wait for the first render, then return either success or the error (message, stack trace, console errors).
+- **First render:** `panel_create` and `panel_update` wait for the first render, then return either success or the error. A custom view's render ends when its code has run, so an error it throws while starting is the call's error, and isn't repeated as a notice.
 - **Later errors** are attached to the session's next tool result.
 
 ## Smart trait
@@ -254,7 +257,7 @@ Agents get the full-path form of these commands from tool results. MCP controls 
   - overview
   - panels and presets
   - formats and updates, including the merge-patch rules
-  - views and their mappings
+  - views and their settings
   - CSS: DOM structure, classes, theme tokens
   - custom views and the bridge
   - smart
@@ -303,6 +306,20 @@ Agents get the full-path form of these commands from tool results. MCP controls 
 - **CI:** GitHub Actions runs the full suite on macOS, Windows and Linux (Linux under xvfb).
 - **First release:** 0.1.0.
 
+## Graph library
+
+`bench/graph.ts` rendered the same synthetic graphs with sigma.js (graphology, ForceAtlas2 in a worker) and cosmos.gl, each in a fresh Electron window. cosmos.gl was picked; sigma.js isn't kept.
+
+| Graph                  | First frame (sigma.js → cosmos.gl) | During layout | Renderer memory |
+| ---------------------- | ---------------------------------- | ------------- | --------------- |
+| 1k nodes, 1.5k edges   | 92 ms → 712 ms                     | 60 → 60 fps   | 167 → 132 MB    |
+| 100k nodes, 150k edges | 1.8 s → 0.5 s                      | 54 → 60 fps   | 675 → 202 MB    |
+| 1M nodes, 1.5M edges   | 46.5 s → 1.4 s                     | — → 9 fps     | 3.5 GB → 528 MB |
+| 1.2k nodes, 72k edges  | 402 → 341 ms                       | 60 → 82 fps   | 327 → 161 MB    |
+| 12k nodes, 1M edges    | 6.7 s → 0.7 s                      | 16 → 59 fps   | 1.4 GB → 309 MB |
+
+sigma.js starts faster only on tiny graphs. At 1M nodes its layout produced no step in the measured 5 seconds.
+
 ## Build order
 
 1. **Trait system core:** formats, update modes (including merge patch), retention, presets and validation. Pure TypeScript with no Electron, covered by unit tests.
@@ -319,7 +336,6 @@ Agents get the full-path form of these commands from tool results. MCP controls 
 - Automatic handling for data that outgrows memory.
 - Blurring panels in screenshots, and a screenshot size setting (v2).
 - Telling the agent that the user closed its window.
-- Limiting the libraries custom views can load to a predefined set.
 - Routing one channel to several panels.
 - Ordering simultaneous pipes by the data's own timestamps.
 - Smart outputs feeding other panels, and per-panel caps. Ad-hoc smart prompts are out entirely.
@@ -352,13 +368,13 @@ panel_create({
     history: 5,
   },
 })
-// → { pipe: "~/.npm/_npx/…/.bin/tapet -c 127.0.0.1:53211/ch_a1…", errors: [] }
+// → { pipe: "…/node …/tapet/pipe-main.js -c 127.0.0.1:53211/c/…" }
 ```
 
 The agent then runs the pipe from its own shell (and keeps it from blocking itself):
 
 ```bash
-tail -f app.log | ~/.npm/_npx/…/.bin/tapet -c 127.0.0.1:53211/ch_a1…
+tail -f app.log | …/node …/tapet/pipe-main.js -c 127.0.0.1:53211/c/…
 ```
 
 Later calls such as `panel_update({ id: "api-log", smart: { … } })` change only the smart settings; the log's data and pipe are untouched. `smart_read({ panel: "api-log", last: 3 })` returns the three latest summaries.

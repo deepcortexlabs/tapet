@@ -126,6 +126,17 @@ export function createSession(options: SessionOptions): Session {
       })
   }
 
+  // A render error reaches the agent with the call that failed, so the same error isn't also kept
+  // as a notice.
+  function renderFailure(id: string, error: string): RpcError {
+    const repeat = `panel "${id}": ${error}`
+    for (let index = notices.indexOf(repeat); index >= 0; index = notices.indexOf(repeat)) {
+      notices.splice(index, 1)
+    }
+
+    return new RpcError(`panel "${id}" failed to render: ${error}`)
+  }
+
   function notice(message: string) {
     notices.push(message)
     log('notice', { message })
@@ -491,7 +502,7 @@ export function createSession(options: SessionOptions): Session {
 
       const renderError = await rendered
       if (renderError) {
-        throw new RpcError(`panel "${settings.id}" failed to render: ${renderError}`)
+        throw renderFailure(settings.id, renderError)
       }
 
       return { channel: `${address}/c/${panel.channel}` }
@@ -526,7 +537,7 @@ export function createSession(options: SessionOptions): Session {
 
       const renderError = await rendered
       if (renderError) {
-        throw new RpcError(`panel "${settings.id}" failed to render: ${renderError}`)
+        throw renderFailure(settings.id, renderError)
       }
 
       return { id: settings.id }

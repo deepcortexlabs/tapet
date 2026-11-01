@@ -263,3 +263,46 @@ test('map: GeoJSON features colored by a value, with a legend and a tooltip, off
   await expect(panel.locator('.tapet-map-tooltip')).toContainText('West')
   await tapet.call('panel_remove', { id: 'votes' })
 })
+
+test('custom: agent code renders panel data in a sandbox, and its errors fail the call', async () => {
+  const code = `
+    const list = document.createElement('ul')
+    tapet.root.append(list)
+    const draw = () =>
+      list.replaceChildren(...tapet.entries().map((entry) =>
+        Object.assign(document.createElement('li'), { textContent: entry.value.name })))
+    draw()
+    tapet.onChange(draw)
+    // The sandbox: no way into tapet's window, and no hosts beyond the allowed ones.
+    let reached = 'yes'
+    try { parent.document.title } catch { reached = 'blocked' }
+    let fetched = 'yes'
+    try { await fetch('https://example.com/') } catch { fetched = 'blocked' }
+    tapet.root.dataset.parent = reached
+    tapet.root.dataset.fetch = fetched
+  `
+  const send = await createPanel({
+    id: 'own',
+    title: 'Own code',
+    format: 'ndjson',
+    update: 'append',
+    view: 'custom',
+    custom: { code },
+  })
+  const frame = page.frameLocator('[data-panel=own] iframe')
+  send('{"name":"alpha"}\n{"name":"beta"}\n')
+  await expect(frame.locator('li')).toHaveText(['alpha', 'beta'])
+  await expect(frame.locator('#root')).toHaveAttribute('data-parent', 'blocked')
+  await expect(frame.locator('#root')).toHaveAttribute('data-fetch', 'blocked')
+
+  // A thrown error is the call's error, once: not repeated as a notice.
+  const failed = text(
+    await tapet.call('panel_update', {
+      id: 'own',
+      custom: { code: "throw new Error('broken on purpose')" },
+    }),
+  )
+  expect(failed).toContain('failed to render: broken on purpose')
+  expect(failed.match(/broken on purpose/g)).toHaveLength(1)
+  await tapet.call('panel_remove', { id: 'own' })
+})

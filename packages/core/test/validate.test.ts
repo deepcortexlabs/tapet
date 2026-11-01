@@ -264,7 +264,7 @@ describe('view settings', () => {
     expect(paths(map('https://tiles.openfreemap.org/styles/positron'))).toEqual([])
     expect(paths(map(false))).toEqual([])
     expect(messageAt(map('https://tiles.example.com/style.json'), 'map.base_map')).toContain(
-      'allowed host (tiles.openfreemap.org)',
+      'allowed host (tiles.openfreemap.org',
     )
   })
 
