@@ -14,6 +14,7 @@
   import { onDestroy, untrack } from 'svelte'
   import type { Bridge } from '../../bridge.ts'
   import { SEQUENTIAL, onThemeChange, readTheme, type ChartTheme } from '../theme.ts'
+  import { hasWebGL2, noWebGL } from '../webgl.ts'
   import { SCALE, buildMap, labelField, neutralize } from './map-model.ts'
 
   let props: { bridge: Bridge } = $props()
@@ -33,6 +34,7 @@
   let container: HTMLDivElement | undefined = $state()
   let count = $state(0)
   let loading = $state(true)
+  let failure = $state<string>()
   let legend = $state<{ field: string; low: string; high: string; gradient: string }>()
   let tip = $state<{ x: number; y: number; rows: Array<[string, string]> }>()
 
@@ -267,6 +269,13 @@
       return
     }
 
+    if (!hasWebGL2()) {
+      failure = noWebGL('map')
+      loading = false
+      bridge.reportError(failure)
+      return
+    }
+
     theme = readTheme(container)
     styleKey = keyOf(theme)
     map = new MapLibre({
@@ -359,6 +368,9 @@
         <div><span class="tapet-map-key">{key}</span> {value}</div>
       {/each}
     </div>
+  {/if}
+  {#if failure}
+    <p class="tapet-map-error">{failure}</p>
   {/if}
   <div class="tapet-map-info">
     {#if legend}

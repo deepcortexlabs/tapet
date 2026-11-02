@@ -3,6 +3,7 @@
   import { onDestroy, untrack } from 'svelte'
   import type { Bridge } from '../../bridge.ts'
   import { onThemeChange, readTheme, toRgba, type ChartTheme } from '../theme.ts'
+  import { hasWebGL2, noWebGL } from '../webgl.ts'
   import {
     LABEL_CANDIDATES,
     buildGraph,
@@ -224,6 +225,12 @@
 
   async function create() {
     if (!container) {
+      return
+    }
+
+    if (!hasWebGL2()) {
+      error = noWebGL('graph')
+      bridge.reportError(error)
       return
     }
 

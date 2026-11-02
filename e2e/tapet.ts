@@ -28,7 +28,9 @@ export async function startTapet(environment: NodeJS.ProcessEnv): Promise<Tapet>
       (entry): entry is [string, string] => entry[1] !== undefined,
     ),
   )
-  const app = await electron.launch({ args: [APP], env })
+  // CI runners have no GPU; WebGL views then need Chromium's software renderer.
+  const software = env.CI ? ['--enable-unsafe-swiftshader'] : []
+  const app = await electron.launch({ args: [...software, APP], env })
   const client = new Client({ name: 'e2e', version: '0' })
   await client.connect(
     new StdioClientTransport({ command: process.execPath, args: [CLI, 'mcp'], env }),

@@ -720,6 +720,15 @@
   height: 100%;
 }
 
+:where(.tapet-map-error) {
+  position: absolute;
+  inset: 40% 16px auto;
+  margin: 0;
+  text-align: center;
+  color: #d70015;
+  font-family: var(--tapet-mono);
+}
+
 :where(.tapet-map-info) {
   position: absolute;
   left: 8px;

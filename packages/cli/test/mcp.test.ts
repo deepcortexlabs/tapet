@@ -91,7 +91,7 @@ it('returns a ready-to-run pipe command for a new panel', async () => {
   const { call } = await connect()
   await call('window_update', { name: 'logs' })
   const result = await call('panel_create', { id: 'log', title: 'Log', preset: 'log' })
-  expect(JSON.parse(text(result)).pipe).toMatch(/main\.ts -c 127\.0\.0\.1:\d+\/c\//)
+  expect(JSON.parse(text(result)).pipe).toMatch(/pipe-main\.ts"? -c 127\.0\.0\.1:\d+\/c\//)
 })
 
 it('explains invalid settings with their issues and the session log', async () => {

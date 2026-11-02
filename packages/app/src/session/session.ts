@@ -681,7 +681,13 @@ export function createSession(options: SessionOptions): Session {
       const message = `malformed data in a pipe into panel "${panelId}": ${problem}`
       notice(`a pipe into panel "${panelId}" stopped. ${message}`)
       res.setHeader('connection', 'close')
-      reply(res, 422, { error: message, session: id }, () => req.destroy())
+      // The pipe command reads this answer and exits. Closing the connection while it's still
+      // sending would reset it, and on Windows the reset loses the answer, so the rest of its data
+      // is read and dropped for a moment first.
+      reply(res, 422, { error: message, session: id }, () => {
+        const timer = setTimeout(() => req.destroy(), PIPE_GRACE_MS)
+        req.once('close', () => clearTimeout(timer))
+      })
     }
 
     const consume = (result: DecodeResult) => {
@@ -902,6 +908,9 @@ export function createSession(options: SessionOptions): Session {
     },
   }
 }
+
+// How long a rejected pipe may keep sending before its connection is closed.
+const PIPE_GRACE_MS = 2000
 
 function reply(res: ServerResponse, status: number, body: unknown, done?: () => void) {
   if (res.headersSent) {
