@@ -248,7 +248,7 @@ window_screenshot()
 pnpm test
 ```
 
-Also `pnpm test:e2e` (builds the app, then drives it through MCP with Playwright), `pnpm lint`, `pnpm format` and `pnpm typecheck`. [DESIGN.md](DESIGN.md) holds the design and the decisions behind it, and `packages/cli/docs` holds the docs agents read.
+Also `pnpm test:e2e` (builds the app, then drives it through MCP with Playwright), `pnpm lint`, `pnpm format` and `pnpm typecheck`. [FEATURES.md](FEATURES.md) lists what tapet does today, [DESIGN.md](DESIGN.md) holds the design and the decisions behind it, and `packages/cli/docs` holds the docs agents read.
 
 ## License
 
