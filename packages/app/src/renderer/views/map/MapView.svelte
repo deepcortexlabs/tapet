@@ -6,7 +6,7 @@
     type ErrorEvent,
     type ExpressionSpecification,
     type GeoJSONSource,
-    type MapLayerMouseEvent,
+    type MapMouseEvent,
     type StyleSpecification,
   } from 'maplibre-gl'
   import 'maplibre-gl/dist/maplibre-gl.css'
@@ -15,7 +15,15 @@
   import type { Bridge } from '../../bridge.ts'
   import { SEQUENTIAL, onThemeChange, readTheme, type ChartTheme } from '../theme.ts'
   import { hasWebGL2, noWebGL } from '../webgl.ts'
-  import { SCALE, buildMap, labelField, neutralize } from './map-model.ts'
+  import {
+    SCALE,
+    SOURCE,
+    buildMap,
+    defaultLayers,
+    labelField,
+    neutralize,
+    type MapColors,
+  } from './map-model.ts'
 
   let props: { bridge: Bridge } = $props()
   // A view keeps its bridge for life; tapet remounts the view to change it.
@@ -25,9 +33,7 @@
   // tapet's window is a file, so it gets the URL of the worker bundled with the view.
   setWorkerUrl(new URL(workerUrl, document.baseURI).href)
 
-  const SOURCE = 'tapet'
-  // The panel's features, one layer per kind of geometry.
-  const LAYERS = ['tapet-fill', 'tapet-line', 'tapet-point'] as const
+  const STYLES = 'https://tiles.openfreemap.org/styles'
   const TOOLTIP_ROWS = 8
   const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
 
@@ -45,12 +51,21 @@
   let fitted = false
   let frame = 0
   let slowTimer: ReturnType<typeof setTimeout> | undefined
-  // What the current style was built from; a change of either loads a new one.
+  // What the current style was built from; a change loads a new one.
   let styleKey = ''
+  // The panel's layers on the map, and what they were built from; a change replaces them.
+  let layerIds: string[] = []
+  let layerKey = ''
   const SLOW_STYLE_MS = 15_000
 
   function settings(): MapSettings {
     return bridge.settings().map ?? {}
+  }
+
+  // Whether the map underneath is dark: a named base map says, and the rest follow the theme.
+  function isDark(current: ChartTheme): boolean {
+    const { base_map: baseMap } = settings()
+    return baseMap === 'dark' || (baseMap !== 'light' && current.dark)
   }
 
   function ramp(current: ChartTheme): string[] {
@@ -60,24 +75,17 @@
     }
 
     // On a dark map the ramp runs the other way, so low values recede into it.
-    return current.dark ? SEQUENTIAL.toReversed() : SEQUENTIAL
+    return isDark(current) ? SEQUENTIAL.toReversed() : SEQUENTIAL
   }
 
-  // Without color_by, every feature takes the first series color; with it, features take their
-  // place on the ramp, and features without a number are gray.
-  function color(current: ChartTheme): ExpressionSpecification | string {
-    if (!settings().color_by) {
-      return current.series[0] ?? current.fg
+  function colorsOf(current: ChartTheme): MapColors {
+    return {
+      color: current.series[0] ?? current.fg,
+      fg: current.fg,
+      muted: current.muted,
+      surface: current.surface,
+      ramp: ramp(current),
     }
-
-    const colors = ramp(current)
-    const stops = colors.flatMap((value, index) => [index / Math.max(1, colors.length - 1), value])
-    return [
-      'case',
-      ['has', SCALE],
-      ['interpolate', ['linear'], ['get', SCALE], ...stops],
-      current.muted,
-    ] as ExpressionSpecification
   }
 
   function baseStyle(current: ChartTheme): string | StyleSpecification {
@@ -90,12 +98,16 @@
       }
     }
 
-    return baseMap ?? `https://tiles.openfreemap.org/styles/${current.dark ? 'dark' : 'positron'}`
+    if (baseMap === undefined || baseMap === 'light' || baseMap === 'dark') {
+      return `${STYLES}/${isDark(current) ? 'dark' : 'positron'}`
+    }
+
+    return baseMap
   }
 
   function keyOf(current: ChartTheme): string {
-    const { base_map: baseMap, label_language: language, borders } = settings()
-    return JSON.stringify([baseMap, language, borders, current.dark, current.surface])
+    const { label_language: language, borders } = settings()
+    return JSON.stringify([baseStyle(current), language, borders])
   }
 
   // Unless map.borders is on, the base map shows no country or region borders and names.
@@ -115,10 +127,6 @@
     }
   }
 
-  function geometry(...types: string[]): ExpressionSpecification {
-    return ['match', ['geometry-type'], types, true, false] as ExpressionSpecification
-  }
-
   // The base map's labels in the chosen language, falling back to the local name.
   function localizeLabels() {
     const language = settings().label_language ?? 'en'
@@ -130,61 +138,33 @@
     }
   }
 
-  function addLayers(current: ChartTheme) {
+  // The panel's shapes go over the base map's roads and areas but under its labels, so place
+  // names stay readable: before the first label that follows the last shape layer. The panel's own
+  // labels go on top, so they win where they collide with the base map's.
+  function setLayers(current: ChartTheme) {
     if (!map) {
       return
     }
 
-    const paint = color(current)
-    // The panel's layers go over the base map's roads and areas but under its labels, so place
-    // names stay readable: before the first label that follows the last shape layer.
-    const layers = map.getStyle().layers
-    const lastShape = layers.findLastIndex((layer) => layer.type !== 'symbol')
-    const labels = layers.slice(lastShape + 1).find((layer) => layer.type === 'symbol')?.id
-    const add = (layer: Parameters<MapLibre['addLayer']>[0]) => map?.addLayer(layer, labels)
-    map.addSource(SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-    add({
-      id: 'tapet-fill',
-      type: 'fill',
-      source: SOURCE,
-      filter: geometry('Polygon', 'MultiPolygon'),
-      paint: { 'fill-color': paint, 'fill-opacity': 0.75 },
-    })
-    // A hairline in the surface color keeps neighboring areas apart.
-    add({
-      id: 'tapet-outline',
-      type: 'line',
-      source: SOURCE,
-      filter: geometry('Polygon', 'MultiPolygon'),
-      paint: { 'line-color': current.surface, 'line-width': 0.75 },
-    })
-    add({
-      id: 'tapet-line',
-      type: 'line',
-      source: SOURCE,
-      filter: geometry('LineString', 'MultiLineString'),
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': paint, 'line-width': 2 },
-    })
-    add({
-      id: 'tapet-point',
-      type: 'circle',
-      source: SOURCE,
-      filter: geometry('Point', 'MultiPoint'),
-      paint: {
-        'circle-color': paint,
-        'circle-radius': 5,
-        'circle-stroke-color': current.surface,
-        'circle-stroke-width': 2,
-      },
-    })
-  }
+    const layers = defaultLayers(colorsOf(current), settings())
+    const key = JSON.stringify(layers)
+    if (key === layerKey) {
+      return
+    }
 
-  function recolor(current: ChartTheme) {
-    const paint = color(current)
-    map?.setPaintProperty('tapet-fill', 'fill-color', paint)
-    map?.setPaintProperty('tapet-line', 'line-color', paint)
-    map?.setPaintProperty('tapet-point', 'circle-color', paint)
+    for (const id of layerIds) {
+      map.removeLayer(id)
+    }
+
+    const style = map.getStyle().layers
+    const lastShape = style.findLastIndex((layer) => layer.type !== 'symbol')
+    const labels = style.slice(lastShape + 1).find((layer) => layer.type === 'symbol')?.id
+    for (const layer of layers) {
+      map.addLayer(layer, layer.type === 'symbol' ? undefined : labels)
+    }
+
+    layerIds = layers.map((layer) => layer.id)
+    layerKey = key
   }
 
   function update() {
@@ -227,9 +207,16 @@
     frame ||= requestAnimationFrame(update)
   }
 
-  // The tooltip lists map.tooltip's properties, or all of them.
-  function showTip(event: MapLayerMouseEvent) {
-    const properties = event.features?.[0]?.properties ?? {}
+  // The tooltip lists map.tooltip's properties, or all of them, of the topmost feature under the
+  // pointer.
+  function hover(event: MapMouseEvent) {
+    const [feature] = loaded ? (map?.queryRenderedFeatures(event.point, { layers: layerIds }) ?? []) : []
+    if (!feature) {
+      hideTip()
+      return
+    }
+
+    const properties = feature.properties
     const keys = settings().tooltip ?? Object.keys(properties).filter((key) => key !== SCALE)
     const rows = keys
       .filter((key) => properties[key] !== undefined)
@@ -285,15 +272,18 @@
       center: [0, 20],
       zoom: 1,
     })
-    // A new style starts empty: the panel's layers go back on it.
+    // A new style starts empty: the panel's source and layers go back on it.
     map.on('style.load', () => {
-      if (!theme) {
+      if (!map || !theme) {
         return
       }
 
       localizeLabels()
       applyBorders()
-      addLayers(theme)
+      map.addSource(SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      layerIds = []
+      layerKey = ''
+      setLayers(theme)
       loaded = true
       loading = false
       clearTimeout(slowTimer)
@@ -302,16 +292,14 @@
     map.on('error', (event: ErrorEvent) => {
       bridge.reportError(`the base map didn't load (${event.error.message}); map.base_map: false draws only the features`)
     })
-    for (const layer of LAYERS) {
-      map.on('mousemove', layer, showTip)
-      map.on('mouseleave', layer, hideTip)
-    }
+    map.on('mousemove', hover)
+    map.on('mouseout', hideTip)
 
     watchStyle()
     update()
   }
 
-  // The theme or the base map settings changed: a new style, or just new colors.
+  // The theme or the settings changed: a new style, or new layers.
   function restyle() {
     if (!map || !container) {
       return
@@ -328,7 +316,7 @@
     }
 
     if (loaded) {
-      recolor(theme)
+      setLayers(theme)
       update()
     }
   }

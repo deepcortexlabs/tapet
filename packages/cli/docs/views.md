@@ -86,10 +86,25 @@ panel_create({ id: "votes", title: "Votes by town", preset: "map", map: { color_
 
 - Accepts `format: "ndjson"`, and `update: "append"`, `"upsert"` or `"patch"`. Each item is a GeoJSON feature: `{ "type": "Feature", "id": …, "geometry": …, "properties": … }`. Points, lines and polygons all work, including their multi forms.
 - The `map` preset upserts by `id`, so a later version of a feature replaces it, e.g. a vote count that grows. Many GeoJSON files keep the id in `properties`; jq can lift it: `jq -c '.features[] | .id = .properties.code'`.
-- `map.base_map`: the map underneath. Defaults to OpenFreeMap (positron, or dark in dark mode). Another style must be an https URL on an allowed host (tiles.openfreemap.org). `false` draws only the features, with no network.
+- `map.base_map`: the map underneath. `"light"` and `"dark"` are OpenFreeMap's positron and dark styles; unset, it follows the app's light or dark mode. Another style must be an https URL on an allowed host (tiles.openfreemap.org). `false` draws only the features, with no network.
 - `map.label_language`: the language of the base map's labels, e.g. `"he"`. Defaults to `"en"`. Places without a name in that language show their local name.
 - `map.borders`: `true` shows country and region borders and names on the base map. They're off by default, so the map takes no side where borders are disputed; cities, roads and water are always labeled.
-- `map.color_by`: colors features by this property's number along a blue scale, with a legend. Features without a number are gray. In dark mode the scale runs the other way, so small values fade into the background. `map.colors` replaces the scale with your own CSS colors, smallest value first.
+- `map.color_by`: colors features by this property's number along a blue scale, with a legend. Features without a number are gray. On a dark base map (dark mode, or `base_map: "dark"`) the scale runs the other way, so small values fade into the background. `map.colors` replaces the scale with your own CSS colors, smallest value first.
+- Features can style themselves with these properties, from the [simplestyle spec](https://github.com/mapbox/simplestyle-spec) plus `sort-key` and `label`. They win over the panel's colors, `color_by` included, and a value that isn't a color or a number falls back to the panel's. For example: `{ "type": "Feature", "id": "haifa", "geometry": …, "properties": { "marker-color": "#e41a1c", "marker-size": "large", "label": "Haifa" } }`.
+
+  | Property         | Applies to              | Value                                                                   |
+  | ---------------- | ----------------------- | ----------------------------------------------------------------------- |
+  | `marker-color`   | points                  | a color, e.g. `"#e41a1c"` or `"red"`                                    |
+  | `marker-size`    | points                  | `"small"`, `"medium"` (the default), `"large"`, or the radius in pixels |
+  | `fill`           | polygons                | a color                                                                 |
+  | `fill-opacity`   | polygons                | 0 to 1; 0.75 by default                                                 |
+  | `stroke`         | lines, polygon outlines | a color                                                                 |
+  | `stroke-width`   | lines, polygon outlines | pixels; 2 for lines and 0.75 for outlines by default                    |
+  | `stroke-opacity` | lines, polygon outlines | 0 to 1                                                                  |
+  | `sort-key`       | all                     | a number: higher draws on top, and keeps its label when labels collide  |
+  | `label`          | all                     | text beside a point, inside a polygon or along a line                   |
+
+- Labels sit above the base map's own labels, which give way where they collide. Without a base map, they're drawn in the window's font.
 - `map.tooltip`: the properties shown when hovering a feature. Defaults to all of them.
 - The view zooms to the data when it first arrives; after that, the user moves it.
 - If the base map doesn't load within 15 seconds, you get a notice; `base_map: false` draws the features anyway.

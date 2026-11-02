@@ -270,12 +270,14 @@ function viewIssues(settings: PanelSettings): Issue[] {
     return gaugeIssues(settings.gauge ?? {}, settings.format)
   }
 
+  // A named base map is OpenFreeMap's; any other style must be on an allowed host.
   const baseMap = settings.map?.base_map
-  if (settings.view === 'map' && typeof baseMap === 'string' && !isAllowedUrl(baseMap)) {
+  const named = baseMap === 'light' || baseMap === 'dark'
+  if (settings.view === 'map' && typeof baseMap === 'string' && !named && !isAllowedUrl(baseMap)) {
     return [
       {
         path: 'map.base_map',
-        message: `map.base_map must be an https style URL on an allowed host (${NETWORK_HOSTS.join(', ')}), e.g. "https://tiles.openfreemap.org/styles/positron", or false for no base map`,
+        message: `map.base_map must be "light", "dark", an https style URL on an allowed host (${NETWORK_HOSTS.join(', ')}), or false for no base map`,
       },
     ]
   }

@@ -29,6 +29,7 @@ export type {
   WindowSettings,
 } from './settings.ts'
 export {
+  BASE_MAPS,
   CHART_ENGINES,
   CHART_TYPES,
   CUSTOM_SURFACES,

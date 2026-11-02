@@ -1,6 +1,7 @@
 // The map view's features, without any DOM, so it's tested on its own: GeoJSON features, where each
-// falls on the color_by scale, and the bounds the view first zooms to.
+// falls on the color_by scale, the bounds the view first zooms to, and the layers that draw them.
 import type { Entry, MapSettings } from '@tapet/core'
+import type { ExpressionSpecification, LayerSpecification } from 'maplibre-gl'
 
 export interface Geometry {
   type: string
@@ -18,6 +19,9 @@ export interface Feature {
 // Where a feature's color_by value falls between the smallest and largest, from 0 to 1. Features
 // without a number have none and are drawn gray.
 export const SCALE = 'tapet:scale'
+
+// The panel's features on the map, as one GeoJSON source.
+export const SOURCE = 'tapet'
 
 export interface MapData {
   features: Feature[]
@@ -172,4 +176,171 @@ export function neutralize(
       { id: layer.id, filter: layer.filter ? ['all', layer.filter, notPolitical] : notPolitical },
     ]
   })
+}
+
+// The colors the panel draws with: the theme's, and the color_by ramp from low to high.
+export interface MapColors {
+  // For features without a color of their own, when there's no color_by.
+  color: string
+  fg: string
+  muted: string
+  surface: string
+  ramp: string[]
+}
+
+// simplestyle-spec's marker sizes, as circle radii in pixels.
+const MARKER_SIZES = { small: 3.5, medium: 5, large: 8 }
+const LABEL_SIZE = 12
+
+function expression(value: unknown[]): ExpressionSpecification {
+  return value as ExpressionSpecification
+}
+
+function geometry(...types: string[]): ExpressionSpecification {
+  return expression(['match', ['geometry-type'], types, true, false])
+}
+
+// A feature's number property, or the fallback when it has none.
+function numberOr(property: string, fallback: number | ExpressionSpecification) {
+  return expression([
+    'case',
+    ['==', ['typeof', ['get', property]], 'number'],
+    ['get', property],
+    fallback,
+  ])
+}
+
+// A feature's color property, or the fallback when it has none or it isn't a color.
+function colorOr(property: string, fallback: string | ExpressionSpecification) {
+  return expression(['to-color', ['get', property], fallback])
+}
+
+// With color_by, a feature's place on the ramp, and gray without a number. Each stop is a color
+// explicitly, because inside to-color nothing tells the ramp its strings are colors.
+function panelColor(colors: MapColors, settings: MapSettings): string | ExpressionSpecification {
+  if (!settings.color_by) {
+    return colors.color
+  }
+
+  const last = Math.max(1, colors.ramp.length - 1)
+  const stops = colors.ramp.flatMap((color, index) => [index / last, ['to-color', color]])
+  return expression([
+    'case',
+    ['has', SCALE],
+    ['interpolate', ['linear'], ['get', SCALE], ...stops],
+    colors.muted,
+  ])
+}
+
+// tapet's layers for the panel's features: areas, lines and points, then their labels. A feature's
+// simplestyle-spec properties (fill, stroke, marker-color…) win over the panel's colors, and a
+// higher sort-key draws on top.
+export function defaultLayers(colors: MapColors, settings: MapSettings): LayerSpecification[] {
+  const color = panelColor(colors, settings)
+  const sortKey = numberOr('sort-key', 0)
+  const radius = expression([
+    'match',
+    ['get', 'marker-size'],
+    ...Object.entries(MARKER_SIZES).flat(),
+    numberOr('marker-size', MARKER_SIZES.medium),
+  ])
+  const areas = geometry('Polygon', 'MultiPolygon')
+  const lines = geometry('LineString', 'MultiLineString')
+  const points = geometry('Point', 'MultiPoint')
+  const labeled = (kind: ExpressionSpecification) => expression(['all', ['has', 'label'], kind])
+  // Without a base map the style has no fonts URL, so MapLibre draws labels in the window's own
+  // font; base maps serve Noto Sans.
+  const text = {
+    'text-field': expression(['to-string', ['get', 'label']]),
+    'text-font': settings.base_map === false ? ['system-ui'] : ['Noto Sans Regular'],
+    'text-size': LABEL_SIZE,
+    // A lower key places first, so the feature drawn on top keeps its label in a collision.
+    'symbol-sort-key': expression(['-', 0, sortKey]),
+  }
+  const textPaint = {
+    'text-color': colors.fg,
+    'text-halo-color': colors.surface,
+    'text-halo-width': 1.5,
+  }
+  return [
+    {
+      id: 'tapet-fill',
+      type: 'fill',
+      source: SOURCE,
+      filter: areas,
+      layout: { 'fill-sort-key': sortKey },
+      paint: {
+        'fill-color': colorOr('fill', color),
+        'fill-opacity': numberOr('fill-opacity', 0.75),
+      },
+    },
+    // A hairline in the surface color keeps neighboring areas apart.
+    {
+      id: 'tapet-outline',
+      type: 'line',
+      source: SOURCE,
+      filter: areas,
+      layout: { 'line-sort-key': sortKey },
+      paint: {
+        'line-color': colorOr('stroke', colors.surface),
+        'line-width': numberOr('stroke-width', 0.75),
+        'line-opacity': numberOr('stroke-opacity', 1),
+      },
+    },
+    {
+      id: 'tapet-line',
+      type: 'line',
+      source: SOURCE,
+      filter: lines,
+      layout: { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': sortKey },
+      paint: {
+        'line-color': colorOr('stroke', color),
+        'line-width': numberOr('stroke-width', 2),
+        'line-opacity': numberOr('stroke-opacity', 1),
+      },
+    },
+    {
+      id: 'tapet-point',
+      type: 'circle',
+      source: SOURCE,
+      filter: points,
+      layout: { 'circle-sort-key': sortKey },
+      paint: {
+        'circle-color': colorOr('marker-color', color),
+        'circle-radius': radius,
+        'circle-stroke-color': colors.surface,
+        'circle-stroke-width': 2,
+      },
+    },
+    // Labels go in the middle of areas, along lines, and beside points, clear of the marker.
+    {
+      id: 'tapet-area-label',
+      type: 'symbol',
+      source: SOURCE,
+      filter: labeled(areas),
+      layout: text,
+      paint: textPaint,
+    },
+    {
+      id: 'tapet-line-label',
+      type: 'symbol',
+      source: SOURCE,
+      filter: labeled(lines),
+      layout: { ...text, 'symbol-placement': 'line-center' },
+      paint: textPaint,
+    },
+    {
+      id: 'tapet-point-label',
+      type: 'symbol',
+      source: SOURCE,
+      filter: labeled(points),
+      layout: {
+        ...text,
+        'text-variable-anchor': ['left', 'right', 'top', 'bottom'],
+        'text-radial-offset': expression(['/', ['+', radius, 4], LABEL_SIZE]),
+        'text-justify': 'auto',
+      },
+      paint: textPaint,
+    },
+  ]
 }

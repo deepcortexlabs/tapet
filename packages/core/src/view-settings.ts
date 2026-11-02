@@ -10,6 +10,8 @@ export const CHART_TYPES = ['line', 'area', 'bar', 'points'] as const
 export const X_TYPES = ['time', 'number'] as const
 export const GRAPH_LAYOUTS = ['force', 'hierarchical'] as const
 export const CUSTOM_SURFACES = ['dom', 'canvas2d', 'webgl'] as const
+// OpenFreeMap's light (positron) and dark styles, by name.
+export const BASE_MAPS = ['light', 'dark'] as const
 // A chart draws at most this many series, one per color of the theme's series palette.
 export const MAX_SERIES = 8
 
@@ -95,12 +97,20 @@ export const graphSettings = z.strictObject(
   { error: 'graph must be an object, e.g. { source: "from", target: "to" }' },
 )
 
+const BASE_MAP_MESSAGE =
+  'map.base_map must be "light", "dark", the URL of a MapLibre style, or false for no base map'
+
 export const mapSettings = z.strictObject(
   {
     base_map: z
-      .union([z.url({ protocol: /^https?$/ }), z.literal(false)], {
-        error: 'map.base_map must be the URL of a MapLibre style, or false for no base map',
-      })
+      .union(
+        [
+          z.enum(BASE_MAPS, { error: BASE_MAP_MESSAGE }),
+          z.url({ protocol: /^https?$/, error: BASE_MAP_MESSAGE }),
+          z.literal(false),
+        ],
+        { error: BASE_MAP_MESSAGE },
+      )
       .optional(),
     label_language: z
       .string()

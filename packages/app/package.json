@@ -36,6 +36,7 @@
     "vega-lite": "^6.5.0"
   },
   "devDependencies": {
+    "@maplibre/maplibre-gl-style-spec": "^26.5.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "electron": "45.2.0",
     "electron-vite": "^6.0.0",

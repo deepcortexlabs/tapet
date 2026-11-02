@@ -1,6 +1,21 @@
+import {
+  Color,
+  createExpression,
+  latest,
+  validateStyleMin,
+  type StylePropertySpecification,
+} from '@maplibre/maplibre-gl-style-spec'
 import { expect, it } from 'vitest'
-import type { Entry } from '@tapet/core'
-import { SCALE, buildMap, labelField, neutralize } from '../src/renderer/views/map/map-model.ts'
+import type { Entry, MapSettings } from '@tapet/core'
+import {
+  SCALE,
+  SOURCE,
+  buildMap,
+  defaultLayers,
+  labelField,
+  neutralize,
+  type MapColors,
+} from '../src/renderer/views/map/map-model.ts'
 
 function entries(...values: unknown[]): Entry[] {
   return values.map((value, index) => ({ key: index + 1, seq: index + 1, receivedAt: 0, value }))
@@ -91,4 +106,64 @@ it('takes borders and the names of countries and regions off the base map', () =
     { id: 'boundary_2', hide: true },
     { id: 'label_city', filter: ['all', ['==', ['get', 'class'], 'city'], political] },
   ])
+})
+
+const colors: MapColors = {
+  color: '#2a78d6',
+  fg: '#1d1d1f',
+  muted: '#6e6e73',
+  surface: '#ffffff',
+  ramp: ['#cde2fb', '#0d366b'],
+}
+
+// A paint property of one of tapet's layers, as MapLibre computes it for a feature.
+function paint(
+  settings: MapSettings,
+  layerId: string,
+  property: string,
+  properties: Record<string, unknown>,
+): unknown {
+  const layer = defaultLayers(colors, settings).find((candidate) => candidate.id === layerId)
+  const value = (layer?.paint as Record<string, unknown> | undefined)?.[property]
+  const specs = latest as unknown as Record<string, Record<string, StylePropertySpecification>>
+  const parsed = createExpression(value, property, specs[`paint_${layer?.type}`]?.[property])
+  if (parsed.result === 'error') {
+    throw new Error(parsed.value.map((error) => error.message).join('; '))
+  }
+
+  const result: unknown = parsed.value.evaluate({ zoom: 10 }, { type: 'Point', properties })
+  return result instanceof Color ? result.toString() : result
+}
+
+const rgba = (color: string) => Color.parse(color)?.toString()
+
+it('builds layers MapLibre accepts', () => {
+  const source = { type: 'geojson' as const, data: { type: 'FeatureCollection', features: [] } }
+  for (const settings of [{}, { color_by: 'votes' }, { base_map: false as const }]) {
+    const style = { version: 8 as const, sources: { [SOURCE]: source }, layers: [] }
+    expect(validateStyleMin({ ...style, layers: defaultLayers(colors, settings) })).toEqual([])
+  }
+})
+
+it("sizes points by simplestyle's marker-size, a name or pixels", () => {
+  const radius = (size?: unknown) =>
+    paint({}, 'tapet-point', 'circle-radius', size === undefined ? {} : { 'marker-size': size })
+  expect([radius('small'), radius('medium'), radius('large')]).toEqual([3.5, 5, 8])
+  expect(radius(12)).toBe(12)
+  expect(radius()).toBe(5)
+  expect(radius('huge')).toBe(5)
+})
+
+it("lets a feature's own colors win over the panel's", () => {
+  const byVotes = { color_by: 'votes' }
+  const point = (properties: Record<string, unknown>) =>
+    paint(byVotes, 'tapet-point', 'circle-color', properties)
+  expect(point({ 'marker-color': '#ff0000', [SCALE]: 1 })).toBe(rgba('#ff0000'))
+  expect(point({ [SCALE]: 0 })).toBe(rgba('#cde2fb'))
+  expect(point({ 'marker-color': 'not a color', [SCALE]: 1 })).toBe(rgba('#0d366b'))
+  expect(point({})).toBe(rgba('#6e6e73'))
+  expect(paint({}, 'tapet-fill', 'fill-color', { fill: 'green' })).toBe(rgba('green'))
+  expect(paint({}, 'tapet-fill', 'fill-color', {})).toBe(rgba('#2a78d6'))
+  expect(paint({}, 'tapet-fill', 'fill-opacity', { 'fill-opacity': 0.2 })).toBe(0.2)
+  expect(paint({}, 'tapet-line', 'line-color', { stroke: '#123456' })).toBe(rgba('#123456'))
 })

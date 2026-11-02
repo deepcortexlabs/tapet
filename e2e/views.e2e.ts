@@ -3,6 +3,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
+import { countPixels } from './png.ts'
 import { startTapet, text, type Tapet } from './tapet.ts'
 
 let tapet: Tapet
@@ -262,6 +263,56 @@ test('map: GeoJSON features colored by a value, with a legend and a tooltip, off
   )
   await expect(panel.locator('.tapet-map-tooltip')).toContainText('West')
   await tapet.call('panel_remove', { id: 'votes' })
+})
+
+test('map: features in their own colors and sizes, and labels, offline', async () => {
+  const send = await createPanel({
+    id: 'styled',
+    title: 'Styled',
+    preset: 'map',
+    map: { base_map: false, color_by: 'votes' },
+  })
+  const panel = page.locator('[data-panel=styled]')
+  const red = async () =>
+    countPixels(await screenshot('styled'), (r, g, b) => r > 180 && g < 100 && b < 100)
+  const blue = async () =>
+    countPixels(await screenshot('styled'), (r, g, b) => b > 180 && r < 100 && g < 100)
+  const area = {
+    type: 'Feature',
+    id: 'area',
+    properties: { votes: 1, fill: '#ff0000', 'fill-opacity': 1 },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [34, 31],
+          [35, 31],
+          [35, 32],
+          [34, 32],
+          [34, 31],
+        ],
+      ],
+    },
+  }
+  const place = {
+    type: 'Feature',
+    id: 'place',
+    properties: { votes: 2, 'marker-color': '#0000ff', 'marker-size': 12 },
+    geometry: { type: 'Point', coordinates: [35.5, 31.5] },
+  }
+  send(`${JSON.stringify(area)}\n${JSON.stringify(place)}\n`)
+  await expect(panel.locator('.tapet-map-count')).toHaveText('2 features')
+  // The features' own colors win over the color_by scale's blues.
+  await expect.poll(red).toBeGreaterThan(1000)
+  expect(await blue()).toBeGreaterThan(200)
+
+  // The label is drawn in the window's own font, without the network, over part of the area.
+  const unlabeled = await red()
+  send(
+    `${JSON.stringify({ ...area, properties: { ...area.properties, label: 'Haifa District' } })}\n`,
+  )
+  await expect.poll(red).toBeLessThan(unlabeled - 100)
+  await tapet.call('panel_remove', { id: 'styled' })
 })
 
 test('custom: agent code renders panel data in a sandbox, and its errors fail the call', async () => {

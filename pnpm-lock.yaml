@@ -260,6 +260,9 @@ importers:
         specifier: ^6.5.0
         version: 6.5.0(vega@6.4.0)
     devDependencies:
+      '@maplibre/maplibre-gl-style-spec':
+        specifier: ^26.5.0
+        version: 26.5.0
       '@sveltejs/vite-plugin-svelte':
         specifier: ^7.3.1
         version: 7.3.1(svelte@5.57.3)(vite@8.3.5(@types/node@24.19.2))
