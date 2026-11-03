@@ -176,3 +176,40 @@ panel_create({ id: "flow", title: "Flow", format: "ndjson", update: "append", vi
 - The theme's variables (`--tapet-fg`, `--tapet-series-1`, …) are set inside the frame. The window's and the panel's CSS don't reach it.
 - Changing `custom.code` or `custom.surface` runs the new code in a fresh frame. Other settings reach it through `onSettings`.
 - An error the code throws while it starts fails the `panel_create` or `panel_update` that ran it. Later errors come back as notices and show in the panel.
+- Classic workers start in the frame, e.g. from a `blob:` URL; module workers don't. So MapLibre GL 5 runs in a custom view, and version 6, whose worker is a module, doesn't.
+- For a map beyond the map view, e.g. MapLibre's full API, pipe GeoJSON features into a custom view:
+
+  ```js
+  import maplibregl from 'https://esm.sh/maplibre-gl@5'
+  // MapLibre 5 needs this plugin for Hebrew and Arabic labels.
+  maplibregl.setRTLTextPlugin(
+    'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js',
+    true,
+  )
+  const css = 'https://esm.sh/maplibre-gl@5/dist/maplibre-gl.css'
+  document.head.append(
+    Object.assign(document.createElement('link'), { rel: 'stylesheet', href: css }),
+  )
+  const map = new maplibregl.Map({
+    container: tapet.root,
+    style: 'https://tiles.openfreemap.org/styles/positron',
+    center: [35, 31.8],
+    zoom: 7,
+  })
+  const features = () => ({
+    type: 'FeatureCollection',
+    features: tapet.entries().map((entry) => entry.value),
+  })
+  map.on('load', () => {
+    map.addSource('items', { type: 'geojson', data: features() })
+    map.addLayer({
+      id: 'items',
+      type: 'circle',
+      source: 'items',
+      paint: { 'circle-color': '#e41a1c', 'circle-radius': 6 },
+    })
+    tapet.onChange(() => map.getSource('items').setData(features()))
+  })
+  ```
+
+  The style shows as published: unlike the map view's, it keeps country borders and names.
