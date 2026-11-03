@@ -37,7 +37,7 @@ async function panelChannel(settings: Record<string, unknown>) {
     throw new Error(created.error.message)
   }
 
-  return { app, channel: (created.result as { channel: string }).channel }
+  return { app, session, channel: (created.result as { channel: string }).channel }
 }
 
 it('streams standard input into a panel and prints nothing', async () => {
@@ -64,6 +64,14 @@ it('stops at malformed data and says how to read the session log', async () => {
   expect(code).toBe(1)
   expect(stderr).toContain('malformed data')
   expect(stderr).toContain('logs --session')
+})
+
+it('exits with 75 when the session has ended, since an agent can resume it', async () => {
+  const { app, session, channel } = await panelChannel({ preset: 'log' })
+  await session.rpc('sessionEnd')
+  const { code, stderr } = await runCli(['-c', channel], 'late\n', app.home)
+  expect(code).toBe(75)
+  expect(stderr).toContain('session_attach')
 })
 
 it('skips malformed data with --ignore-malformed', async () => {

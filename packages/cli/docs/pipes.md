@@ -8,7 +8,7 @@ tail -f app.log | <pipe>
 
 - Run the command yourself, in your own shell. Your harness's permissions apply as usual.
 - `tail -f` and similar commands never exit, so run them in a way that doesn't block you (for example in the background).
-- The pipe command prints nothing on success. On an error it prints the reason and the command that shows the session log, and exits with a non-zero code.
+- The pipe command prints nothing on success. On an error it prints the reason and the command that shows the session log, and exits with a non-zero code: 75 when the session has ended but can be resumed with `session_attach`, so a feeder can retry the same command later, and 1 otherwise.
 - Many programs buffer their output when it goes to a pipe, so data arrives in bursts. Ask them for line buffering, e.g. `PYTHONUNBUFFERED=1`, `grep --line-buffered`, `stdbuf -oL <command>`.
 - Several pipes can feed one panel, one after another or at the same time. Simultaneous items are ordered by when tapet received them.
 - One command can feed several panels with `tee` and process substitution: `<command> | tee >(<pipe A>) >(<pipe B>) > /dev/null`. Pipe commands never change how the outputs they share behave, so the other readers lose nothing.

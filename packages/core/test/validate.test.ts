@@ -330,6 +330,18 @@ describe('validateWindowUpdate', () => {
     const { issues } = validateWindowUpdate({ name: 'logs' }, { width: 100, colour: 'red' })
     expect(issues.map((issue) => issue.path).sort()).toEqual(['colour', 'width'])
   })
+
+  it('takes an idle timeout in seconds, or never', () => {
+    const current = { name: 'logs' }
+    expect(validateWindowUpdate(current, { idle_timeout: { seconds: 0 } }).issues).toEqual([])
+    expect(validateWindowUpdate(current, { idle_timeout: 'never' }).settings?.idle_timeout).toBe(
+      'never',
+    )
+    for (const idle_timeout of [{ minutes: 5 }, { seconds: -1 }, 'forever']) {
+      const { issues } = validateWindowUpdate(current, { idle_timeout })
+      expect(issues[0]?.message).toContain('idle_timeout must be { seconds: <seconds> } or "never"')
+    }
+  })
 })
 
 describe('smart', () => {

@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net'
 import { dirname } from 'node:path'
 import type { LanguageModel } from 'ai'
 import {
+  DEFAULT_IDLE_TIMEOUT_SECONDS,
   createDecoder,
   createStore,
   validateCreate,
@@ -28,6 +29,7 @@ import type {
   RpcRequest,
   RpcResponse,
   SessionConfig,
+  SessionState,
   SessionToMain,
   SessionToWindow,
   WindowToSession,
@@ -90,8 +92,14 @@ export function createSession(options: SessionOptions): Session {
   const channels = new Map<string, Panel>()
   const notices: string[] = []
   let window: WindowSettings = {}
-  let frozen = false
+  // Detached until `tapet mcp` attaches, which it does right after creating the session.
+  let state: SessionState = 'detached'
+  let endedAt: number | undefined
   let attachment: string | undefined
+  // Since when the session has had no agent and no open pipe, for its idle timeout.
+  let idleSince: number | undefined
+  let idleTimer: ReturnType<typeof setTimeout> | undefined
+  let smartPaused = false
   let port: WindowPort | undefined
   let address = ''
   let requestCounter = 0
@@ -202,7 +210,7 @@ export function createSession(options: SessionOptions): Session {
 
   // Creates, updates or reopens the window. Resolves once it's open and has the current state.
   function showWindow(focus: boolean): Promise<void> {
-    main.send({ type: 'showWindow', window, frozen, focus })
+    main.send({ type: 'showWindow', window, state, focus })
     if (port) {
       postNow({ type: 'window', window })
       return Promise.resolve()
@@ -235,7 +243,8 @@ export function createSession(options: SessionOptions): Session {
     windowPort.post({
       type: 'snapshot',
       window,
-      frozen,
+      state,
+      ...(endedAt === undefined ? {} : { endedAt }),
       panels: [...panels.values()].map(snapshotOf),
     })
     const waiters = windowWaiters
@@ -245,6 +254,7 @@ export function createSession(options: SessionOptions): Session {
     }
 
     log('window opened')
+    refresh()
   }
 
   function closeWindow() {
@@ -263,6 +273,7 @@ export function createSession(options: SessionOptions): Session {
 
     geometryRequests.clear()
     log('window closed')
+    refresh()
   }
 
   function handleWindowMessage(message: WindowToSession) {
@@ -349,12 +360,61 @@ export function createSession(options: SessionOptions): Session {
     })
   }
 
-  function freeze(reason: string) {
-    if (frozen) {
+  function setState(next: SessionState) {
+    state = next
+    main.send({ type: 'state', state })
+    postNow(endedAt === undefined ? { type: 'state', state } : { type: 'state', state, endedAt })
+  }
+
+  function setSmartPaused(paused: boolean) {
+    if (paused === smartPaused) {
       return
     }
 
-    frozen = true
+    smartPaused = paused
+    if (paused) {
+      smart.pause()
+      return
+    }
+
+    smart.resume()
+  }
+
+  function hasOpenPipe(): boolean {
+    return [...panels.values()].some((panel) => panel.pipes.size > 0)
+  }
+
+  // Recomputes what depends on who's there. Smart runs pause when the session has ended, or when
+  // nobody can see their output: no agent attached and the window closed. The idle timeout counts
+  // only time with no agent attached and no pipe open.
+  function refresh() {
+    setSmartPaused(state === 'ended' || (state === 'detached' && !port))
+    clearTimeout(idleTimer)
+    idleTimer = undefined
+    if (state !== 'detached' || hasOpenPipe()) {
+      idleSince = undefined
+      return
+    }
+
+    idleSince ??= Date.now()
+    const timeout = window.idle_timeout ?? { seconds: DEFAULT_IDLE_TIMEOUT_SECONDS }
+    if (timeout === 'never') {
+      return
+    }
+
+    const remaining = Math.max(0, idleSince + timeout.seconds * 1000 - Date.now())
+    idleTimer = setTimeout(
+      () => end(`no agent and no data for ${timeout.seconds} seconds`),
+      remaining,
+    )
+  }
+
+  function end(reason: string) {
+    if (state === 'ended') {
+      return
+    }
+
+    endedAt = Date.now()
     for (const panel of panels.values()) {
       for (const pipe of panel.pipes) {
         pipe.destroy()
@@ -364,21 +424,12 @@ export function createSession(options: SessionOptions): Session {
       setLive(panel)
     }
 
-    smart.pause()
-    main.send({ type: 'frozen', frozen: true })
-    postNow({ type: 'frozen', frozen: true })
+    setState('ended')
+    refresh()
     log('session ended', { reason })
     if (config.ended_panels === 'remove') {
       main.send({ type: 'discardSelf' })
     }
-  }
-
-  function unfreeze() {
-    frozen = false
-    smart.resume()
-    main.send({ type: 'frozen', frozen: false })
-    postNow({ type: 'frozen', frozen: false })
-    log('session resumed')
   }
 
   function panelFor(params: unknown, field = 'id'): Panel {
@@ -581,7 +632,7 @@ export function createSession(options: SessionOptions): Session {
     },
 
     async sessionEnd() {
-      freeze('session_end')
+      end('session_end')
       return { session: id }
     },
 
@@ -657,9 +708,13 @@ export function createSession(options: SessionOptions): Session {
     ignoreMalformed: boolean,
   ) {
     const panelId = panel.settings.id
-    if (frozen) {
+    if (state === 'ended') {
       req.resume()
-      reply(res, 409, { error: 'the tapet session has ended', session: id })
+      reply(res, 409, {
+        error: `the tapet session ${id} has ended; an agent can resume it with session_attach, and this command then works again`,
+        session: id,
+        resumable: true,
+      })
       return
     }
 
@@ -672,12 +727,14 @@ export function createSession(options: SessionOptions): Session {
     let skipped = 0
     panel.pipes.add(req)
     setLive(panel)
+    refresh()
     log('pipe opened', { panel: panelId })
 
     const fail = (problem: string) => {
       failed = true
       panel.pipes.delete(req)
       setLive(panel)
+      refresh()
       const message = `malformed data in a pipe into panel "${panelId}": ${problem}`
       notice(`a pipe into panel "${panelId}" stopped. ${message}`)
       res.setHeader('connection', 'close')
@@ -718,6 +775,7 @@ export function createSession(options: SessionOptions): Session {
 
       panel.pipes.delete(req)
       setLive(panel)
+      refresh()
       log('pipe closed', { panel: panelId, skipped })
       reply(res, 200, { panel: panelId, skipped })
     })
@@ -725,6 +783,7 @@ export function createSession(options: SessionOptions): Session {
     req.on('error', () => {
       panel.pipes.delete(req)
       setLive(panel)
+      refresh()
     })
   }
 
@@ -739,6 +798,8 @@ export function createSession(options: SessionOptions): Session {
     res.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store' })
     res.write(`${JSON.stringify({ attachment: current, session: id })}\n`)
     const heartbeat = setInterval(() => res.write('{}\n'), 15_000)
+    // A closed connection only detaches: harnesses close MCP connections routinely (restarts,
+    // conversations that go idle), so the session keeps running until its idle timeout.
     res.on('close', () => {
       clearInterval(heartbeat)
       if (attachment !== current) {
@@ -746,13 +807,21 @@ export function createSession(options: SessionOptions): Session {
       }
 
       attachment = undefined
-      freeze('the MCP connection closed')
+      if (state === 'attached') {
+        setState('detached')
+        log('detached', { reason: 'the MCP connection closed' })
+      }
+
+      refresh()
     })
 
-    if (frozen) {
-      unfreeze()
+    if (state === 'ended') {
+      endedAt = undefined
+      log('session resumed')
     }
 
+    setState('attached')
+    refresh()
     log('attached')
   }
 
@@ -776,7 +845,7 @@ export function createSession(options: SessionOptions): Session {
     }
 
     try {
-      if (frozen) {
+      if (state === 'ended') {
         throw new RpcError('this session has ended; call window_update to start a new one')
       }
 
@@ -852,7 +921,7 @@ export function createSession(options: SessionOptions): Session {
 
   // Expires data by time-based retention while no input arrives.
   const trimTimer = setInterval(() => {
-    if (frozen) {
+    if (state === 'ended') {
       return
     }
 
@@ -870,6 +939,8 @@ export function createSession(options: SessionOptions): Session {
         server.listen(0, '127.0.0.1', () => {
           address = `127.0.0.1:${(server.address() as AddressInfo).port}`
           log('session started', { address })
+          // A session that no agent ever attaches to still ends on its idle timeout.
+          refresh()
           resolve(`http://${address}`)
         })
       })
@@ -900,6 +971,7 @@ export function createSession(options: SessionOptions): Session {
 
     async close() {
       smart.pause()
+      clearTimeout(idleTimer)
       clearInterval(trimTimer)
       clearTimeout(flushTimer)
       server.closeAllConnections()

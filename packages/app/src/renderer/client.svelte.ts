@@ -3,6 +3,7 @@ import type { PanelSettings, WindowSettings } from '@tapet/core'
 import type {
   Geometry,
   PanelSnapshot,
+  SessionState,
   SessionToWindow,
   SmartView,
   WindowToSession,
@@ -48,7 +49,9 @@ function measure(): Geometry {
 
 class Client {
   window = $state<WindowSettings>({})
-  frozen = $state(false)
+  state = $state<SessionState>('attached')
+  // When the session ended, in milliseconds since 1970.
+  endedAt = $state<number>()
   panels = $state.raw<PanelState[]>([])
   #port: MessagePort | undefined
 
@@ -78,7 +81,8 @@ class Client {
   #handle(message: SessionToWindow) {
     if (message.type === 'snapshot') {
       this.window = message.window
-      this.frozen = message.frozen
+      this.state = message.state
+      this.endedAt = message.endedAt
       this.panels = message.panels.map((panel) => toState(panel, this.#report))
       return
     }
@@ -118,8 +122,9 @@ class Client {
       return
     }
 
-    if (message.type === 'frozen') {
-      this.frozen = message.frozen
+    if (message.type === 'state') {
+      this.state = message.state
+      this.endedAt = message.endedAt
       return
     }
 

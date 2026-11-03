@@ -51,6 +51,7 @@ export const DOC_TOPICS = [
 
 const INSTRUCTIONS = `tapet is a window you direct to show things to your user. Data doesn't pass through you: you run commands in your own shell and pipe their output straight into tapet panels.
 - Record your tapet session id (window_update returns it). session_attach reconnects to it later.
+- If your MCP connection closes (your harness restarted, or this conversation went idle), your session keeps running: pipes keep flowing and panels keep updating. It ends after idle_timeout with no agent attached and no pipe open, an hour by default. Choose it with window_update: short for a quick look, or { idle_timeout: "never" } for a dashboard that must keep running.
 - Resuming is your job: keep your own record of your setup. window_get returns the current one.
 - Pipes like \`tail -f … | <pipe>\` never exit, so run them in a way that doesn't block you.
 - Memory is yours to manage: set retention on panels that receive endless data.
@@ -135,7 +136,7 @@ export function createTapetServer(options: ServerOptions = {}): Server {
     {
       name: 'window_update',
       description:
-        'Opens your tapet window, or changes it. The first call must include name (the window title). Fields you send replace those fields: name, width, height, x, y, always_on_top, and css (one global stylesheet). Panels are the children of #tapet, a vertical stack by default: lay them out with CSS on #tapet, e.g. #tapet { display: grid; grid-template-columns: 2fr 1fr }, and target one panel with [data-panel=<id>]. Then check the layout with window_inspect. Returns your tapet session id; record it so you can reconnect with session_attach.',
+        'Opens your tapet window, or changes it. The first call must include name (the window title). Fields you send replace those fields: name, width, height, x, y, always_on_top, css (one global stylesheet), and idle_timeout ({ seconds } or "never": how long the session lives with no agent attached and no pipe open; an hour by default). Panels are the children of #tapet, a vertical stack by default: lay them out with CSS on #tapet, e.g. #tapet { display: grid; grid-template-columns: 2fr 1fr }, and target one panel with [data-panel=<id>]. Then check the layout with window_inspect. Returns your tapet session id; record it so you can reconnect with session_attach.',
       schema: windowUpdateSchema,
       async run(args) {
         if (!session?.isOpen()) {

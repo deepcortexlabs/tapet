@@ -14,6 +14,8 @@ export interface Tapet {
   call(name: string, args?: Record<string, unknown>): Promise<CallToolResult>
   // Calls a tool and parses its JSON result.
   json<T = Record<string, unknown>>(name: string, args?: Record<string, unknown>): Promise<T>
+  // Closes the MCP connection and opens a new one, the way a harness restarting `tapet mcp` does.
+  reconnect(): Promise<void>
   close(): Promise<void>
 }
 
@@ -31,10 +33,14 @@ export async function startTapet(environment: NodeJS.ProcessEnv): Promise<Tapet>
   // CI runners have no GPU; WebGL views then need Chromium's software renderer.
   const software = env.CI ? ['--enable-unsafe-swiftshader'] : []
   const app = await electron.launch({ args: [...software, APP], env })
-  const client = new Client({ name: 'e2e', version: '0' })
-  await client.connect(
-    new StdioClientTransport({ command: process.execPath, args: [CLI, 'mcp'], env }),
-  )
+  const connect = async () => {
+    const connected = new Client({ name: 'e2e', version: '0' })
+    await connected.connect(
+      new StdioClientTransport({ command: process.execPath, args: [CLI, 'mcp'], env }),
+    )
+    return connected
+  }
+  let client = await connect()
   const call = async (name: string, args: Record<string, unknown> = {}) =>
     (await client.callTool({ name, arguments: args })) as CallToolResult
 
@@ -42,6 +48,10 @@ export async function startTapet(environment: NodeJS.ProcessEnv): Promise<Tapet>
     app,
     call,
     json: async (name, args) => JSON.parse(text(await call(name, args))),
+    async reconnect() {
+      await client.close()
+      client = await connect()
+    },
     async close() {
       await client.close()
       // tapet keeps running with no windows open, so quit it the way a user would.

@@ -57,7 +57,8 @@ export async function runPipe(
           return
         }
 
-        finish(1, describeFailure(Buffer.concat(chunks).toString('utf8')))
+        const failure = describeFailure(Buffer.concat(chunks).toString('utf8'))
+        finish(failure.resumable ? RESUMABLE : 1, failure.message)
       })
     })
 
@@ -71,16 +72,25 @@ export async function runPipe(
   })
 }
 
-function describeFailure(body: string): string {
+// The exit code when the session has ended but an agent can resume it (EX_TEMPFAIL): running the
+// same pipe command again works once it has.
+export const RESUMABLE = 75
+
+function describeFailure(body: string): { message: string; resumable: boolean } {
   try {
-    const { error, session } = JSON.parse(body) as { error?: string; session?: string }
+    const { error, session, resumable } = JSON.parse(body) as {
+      error?: string
+      session?: string
+      resumable?: boolean
+    }
     if (!session) {
-      return error ?? body
+      return { message: error ?? body, resumable: false }
     }
 
-    return `${error}\nsee: ${commandLine([...selfCommand(), 'logs', '--session', session])}`
+    const logs = commandLine([...selfCommand(), 'logs', '--session', session])
+    return { message: `${error}\nsee: ${logs}`, resumable: resumable === true }
   } catch {
     // Not a JSON answer from tapet; show it as it is.
-    return body
+    return { message: body, resumable: false }
   }
 }

@@ -10,7 +10,7 @@
   let failure = $state<string>()
   let mounted: { type: ViewType; view?: MountedView } | undefined
   // live: a pipe is feeding the panel; idle: none is; ended: the session ended.
-  const liveness = $derived(client.frozen ? 'ended' : panel.live ? 'live' : 'idle')
+  const liveness = $derived(client.state === 'ended' ? 'ended' : panel.live ? 'live' : 'idle')
 
   // The panel's own CSS applies only inside the panel.
   const style = document.createElement('style')

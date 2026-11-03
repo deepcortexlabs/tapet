@@ -190,6 +190,12 @@ const SIZE_MESSAGE = 'width and height must be whole numbers of pixels, at least
 const POSITION_MESSAGE = 'x and y must be whole numbers of pixels'
 
 // Input of window_update: fields sent replace those fields. The first call must include a name.
+const IDLE_MESSAGE =
+  'idle_timeout must be { seconds: <seconds> } or "never": how long the session lives with no agent attached and no pipe feeding it'
+
+// How long a session lives with no agent attached and no pipe feeding it. Without one, an hour.
+export const DEFAULT_IDLE_TIMEOUT_SECONDS = 3600
+
 export const windowUpdateSchema = z.strictObject({
   name: z.string({ error: NAME_MESSAGE }).trim().min(1, { error: NAME_MESSAGE }).optional(),
   width: z.int({ error: SIZE_MESSAGE }).min(200, { error: SIZE_MESSAGE }).optional(),
@@ -198,6 +204,17 @@ export const windowUpdateSchema = z.strictObject({
   y: z.int({ error: POSITION_MESSAGE }).optional(),
   always_on_top: z.boolean({ error: 'always_on_top must be true or false' }).optional(),
   css: css.optional(),
+  idle_timeout: z
+    .union(
+      [
+        z.literal('never'),
+        z.strictObject({
+          seconds: z.number({ error: IDLE_MESSAGE }).min(0, { error: IDLE_MESSAGE }),
+        }),
+      ],
+      { error: IDLE_MESSAGE },
+    )
+    .optional(),
 })
 
 export type WindowSettings = z.output<typeof windowUpdateSchema>

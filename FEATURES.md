@@ -42,11 +42,11 @@ The official list of what tapet does today.
 - **View settings:** an object named after the view, e.g. `gauge: { max: 100 }`. Only the current view's object is allowed, and switching views drops the previous one.
 - **Retention:** `all`, `{ last: <items> }` or `{ seconds: <seconds> }`. It doesn't apply to `replace` panels.
 - **Follow:** append panels in the log, table and chart views keep the newest data in view. Scrolling or zooming away pauses it, "Jump to latest" or a double-click resumes it, and `follow` overrides it.
-- **Status:** the title-bar dot shows live (a pipe is feeding the panel), idle or ended.
+- **Status:** the title-bar dot shows live (a pipe is feeding the panel), idle or ended. The window shows "No agent attached" or "Session ended at …" when no agent holds the session.
 
 ## Data
 
-- **Pipes:** `<command> | <pipe>` streams standard input into a panel. It prints nothing on success. On an error it prints why and how to read the session log, and exits non-zero.
+- **Pipes:** `<command> | <pipe>` streams standard input into a panel. It prints nothing on success. On an error it prints why and how to read the session log, and exits non-zero: 75 when the session has ended but can be resumed, 1 otherwise.
 - **Many pipes:** several pipes can feed one panel, one after another or at once. Simultaneous items are ordered by arrival. One command can feed several panels through `tee >(<pipe>)` without losing data.
 - **channel_write:** sends data the agent already has, processed exactly like a pipe.
 - **Formats:** `lines`, `ndjson`, `csv` (RFC 4180, header by default) and `whole` (each pipe's input is one item). Text is UTF-8, with LF or CRLF line endings.
@@ -87,9 +87,11 @@ The official list of what tapet does today.
 ## Sessions
 
 - **Created on demand:** the first `window_update` creates the session and returns its id.
-- **Ending:** a closed MCP connection or `session_end` ends the session. Its panels stay visible but frozen, and its pipes close. With `ended_panels: remove`, the window closes and the session is discarded.
+- **Detaching:** a closed MCP connection only detaches the session. Pipes keep flowing and panels keep updating; smart runs pause while the window is closed.
+- **Idle timeout:** `window_update({ idle_timeout })`, `{ seconds }` or `"never"`, an hour by default, ends a detached session after that long with no pipe open.
+- **Ending:** `session_end` or the idle timeout ends the session. Its panels stay visible but frozen, and its pipes close. With `ended_panels: remove`, the window closes and the session is discarded.
 - **Reattaching:** `session_attach` revives a live or ended session by id. It fails while another live connection holds it.
-- **Closing an ended session:** closing its window asks whether to discard or keep it, with "Remember this choice".
+- **Closing a session no agent holds:** closing the window of a detached or ended session asks whether to discard or keep it, with "Remember this choice".
 - **Isolation:** each session has its own window, background process, storage partition and token.
 
 ## App

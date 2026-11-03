@@ -29,6 +29,8 @@ Each view's own classes, inside `.tapet-view`:
 
 `.tapet-empty` is the message a view shows before data arrives.
 
+Outside that structure, `p.tapet-session-status[data-state]` shows "No agent attached" (`detached`) or "Session ended at …" (`ended`), fixed to the window's corner so it never moves your layout.
+
 ## Where CSS goes
 
 - `window_update({ css })`: one global stylesheet. Use it for the layout.

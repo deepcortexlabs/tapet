@@ -132,7 +132,7 @@ async function startSession() {
   })
   running.push(session)
   const url = await session.listen()
-  return { url, sent, window }
+  return { url, sent, window, session }
 }
 
 async function attach(url: string) {
@@ -175,7 +175,7 @@ async function until(check: () => boolean) {
 
 async function attachedWithLog(format = 'lines') {
   const started = await startSession()
-  const { attachment } = await attach(started.url)
+  const { attachment, detach } = await attach(started.url)
   await rpc(started.url, attachment, 'windowUpdate', { name: 'logs' })
   const preset =
     format === 'lines' ? { preset: 'log' } : { format, update: 'append', view: 'table' }
@@ -185,18 +185,65 @@ async function attachedWithLog(format = 'lines') {
     ...preset,
   })
   const { channel } = (created as { result: { channel: string } }).result
-  return { ...started, attachment, channel }
+  return { ...started, attachment, channel, detach }
 }
 
-it('allows one live connection at a time and ends the session when it goes away', async () => {
+const states = (sent: SessionToMain[]) =>
+  sent.flatMap((message) => (message.type === 'state' ? [message.state] : []))
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+it('allows one live connection at a time, and a closed connection only detaches', async () => {
   const { url, sent } = await startSession()
   const first = await attach(url)
   expect((await attach(url)).status).toBe(409)
 
   first.detach()
-  await until(() => sent.some((message) => message.type === 'frozen' && message.frozen))
+  await until(() => states(sent).at(-1) === 'detached')
   expect((await attach(url)).status).toBe(200)
-  expect(sent.at(-1)).toEqual({ type: 'frozen', frozen: false })
+  expect(states(sent)).toEqual(['attached', 'detached', 'attached'])
+})
+
+it('keeps a detached session running, so pipes still feed it', async () => {
+  const { channel, window, sent, detach } = await attachedWithLog()
+  detach()
+  await until(() => states(sent).at(-1) === 'detached')
+  expect((await pipe(channel, 'while detached\n')).status).toBe(200)
+  expect(window.added('log')).toContain('while detached')
+})
+
+it('ends a detached session after its idle timeout, and tells pipes they can resume it', async () => {
+  const { url, attachment, channel, sent, detach } = await attachedWithLog()
+  await rpc(url, attachment, 'windowUpdate', { idle_timeout: { seconds: 0.1 } })
+  detach()
+  await until(() => states(sent).at(-1) === 'ended')
+  expect(await pipe(channel, 'late\n')).toMatchObject({
+    status: 409,
+    body: { resumable: true, error: expect.stringContaining('session_attach') },
+  })
+})
+
+it('lets an open pipe hold off the idle timeout, and never turns it off', async () => {
+  const { url, attachment, channel, sent, detach } = await attachedWithLog()
+  await rpc(url, attachment, 'windowUpdate', { idle_timeout: { seconds: 0.1 } })
+  const open = request(`http://${channel}`, { method: 'PUT' })
+  open.on('error', () => undefined)
+  open.write('streaming\n')
+  await pause(50)
+  detach()
+  await pause(300)
+  expect(states(sent)).not.toContain('ended')
+
+  open.end()
+  await until(() => states(sent).at(-1) === 'ended')
+})
+
+it('never ends a detached session whose idle timeout is never', async () => {
+  const { url, attachment, sent, detach } = await attachedWithLog()
+  await rpc(url, attachment, 'windowUpdate', { idle_timeout: 'never' })
+  detach()
+  await pause(300)
+  expect(states(sent)).toEqual(['attached', 'detached'])
 })
 
 it('refuses RPC from clients that are not attached', async () => {
@@ -288,7 +335,7 @@ it('cuts open pipes and refuses new ones once the session ends', async () => {
 
   expect((await rpc(url, attachment, 'sessionEnd')).ok).toBe(true)
   expect(await cut).not.toBe('status 200')
-  expect((await pipe(channel, 'late\n')).status).toBe(409)
+  expect(await pipe(channel, 'late\n')).toMatchObject({ status: 409, body: { resumable: true } })
 })
 
 it('screenshots a panel by its place in the window', async () => {
@@ -370,8 +417,36 @@ it('asks main to discard an ended session when the config removes ended panels',
   await rpc(url, first.attachment, 'sessionConfigure', {
     config: { ...CONFIG, ended_panels: 'remove' },
   })
-  first.detach()
+  await rpc(url, first.attachment, 'sessionEnd')
   await until(() => sent.some((message) => message.type === 'discardSelf'))
+})
+
+it('pauses smart runs while nobody can see them: no agent, and the window closed', async () => {
+  const { url, sent, session } = await startSession()
+  const first = await attach(url)
+  await rpc(url, first.attachment, 'sessionConfigure', { config: CONFIG })
+  await rpc(url, first.attachment, 'windowUpdate', { name: 'logs', idle_timeout: 'never' })
+  const created = await rpc(url, first.attachment, 'panelCreate', {
+    id: 'log',
+    title: 'Log',
+    preset: 'log',
+    smart: { prompt: 'Summarize', every: { items: 2 } },
+  })
+  const { channel } = (created as { result: { channel: string } }).result
+  // Each run asks main whether the daily cap allows it.
+  const runs = () => sent.filter((message) => message.type === 'capCheck').length
+
+  first.detach()
+  await until(() => states(sent).at(-1) === 'detached')
+  session.handleMain({ type: 'windowClosed' })
+  await pipe(channel, 'one\ntwo\n')
+  await pause(200)
+  expect(runs()).toBe(0)
+
+  const second = await attach(url)
+  expect(second.status).toBe(200)
+  await pipe(channel, 'three\nfour\n')
+  await until(() => runs() > 0)
 })
 
 it('takes focus when the config asks for it', async () => {

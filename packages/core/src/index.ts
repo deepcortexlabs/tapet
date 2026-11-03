@@ -6,6 +6,7 @@ export { NETWORK_HOSTS, isAllowedUrl } from './network.ts'
 export { PRESETS, resolvePanel } from './presets.ts'
 export type { Preset, ResolvedPanel } from './presets.ts'
 export {
+  DEFAULT_IDLE_TIMEOUT_SECONDS,
   FIXED_SETTINGS,
   FORMATS,
   PANEL_ID_PATTERN,

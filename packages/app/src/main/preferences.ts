@@ -4,7 +4,8 @@ import { dirname } from 'node:path'
 import { preferencesPath } from '@tapet/protocol'
 
 export interface Preferences {
-  // What closing an ended session's window does, once the user ticked "Remember this choice".
+  // What closing the window of a session no agent holds (detached or ended) does, once the user
+  // ticked "Remember this choice".
   frozenWindowClose?: 'discard' | 'keep'
 }
 

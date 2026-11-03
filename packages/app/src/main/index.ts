@@ -26,6 +26,7 @@ import {
   type ControlResponse,
   type MainToSession,
   type Rect,
+  type SessionState,
   type SessionToMain,
 } from '@tapet/protocol'
 import sessionEntry from '../session/index.ts?modulePath'
@@ -42,12 +43,12 @@ interface SessionRecord {
   settings: WindowSettings
   // Settings already applied to the window, so later updates only change what changed.
   applied: WindowSettings
-  frozen: boolean
+  state: SessionState
   closeConfirmed: boolean
 }
 
 const sessions = new Map<string, SessionRecord>()
-// Set once the user quits, so closing windows doesn't ask about ended sessions.
+// Set once the user quits, so closing windows doesn't ask about sessions no agent holds.
 let quitting = false
 // App-wide settings, from the user's own config (a project can't change them).
 let usage: Usage | undefined
@@ -97,7 +98,7 @@ function createSession(): SessionRecord {
     }),
     settings: {},
     applied: {},
-    frozen: false,
+    state: 'detached',
     closeConfirmed: false,
   }
   sessions.set(id, record)
@@ -120,7 +121,7 @@ function createSession(): SessionRecord {
 function handleSession(record: SessionRecord, message: SessionToMain) {
   if (message.type === 'showWindow') {
     record.settings = message.window
-    record.frozen = message.frozen
+    record.state = message.state
     showWindow(record, message.focus)
     return
   }
@@ -162,8 +163,8 @@ function handleSession(record: SessionRecord, message: SessionToMain) {
     return
   }
 
-  if (message.type === 'frozen') {
-    record.frozen = message.frozen
+  if (message.type === 'state') {
+    record.state = message.state
   }
 }
 
@@ -262,13 +263,15 @@ function applySettings(record: SessionRecord, window: BrowserWindow) {
   record.applied = { ...settings }
 }
 
+// Closing the window of a session no agent holds asks first: nothing would bring the window back,
+// and a detached session would otherwise keep running unseen.
 async function onWindowClose(record: SessionRecord, window: BrowserWindow, event: Event) {
-  if (quitting || !record.frozen || record.closeConfirmed) {
+  if (quitting || record.state === 'attached' || record.closeConfirmed) {
     return
   }
 
   event.preventDefault()
-  const choice = await frozenCloseChoice(window)
+  const choice = await closeChoice(window, record.state)
   if (choice === 'discard') {
     discard(record)
     return
@@ -278,7 +281,23 @@ async function onWindowClose(record: SessionRecord, window: BrowserWindow, event
   window.close()
 }
 
-async function frozenCloseChoice(window: BrowserWindow): Promise<'discard' | 'keep'> {
+const CLOSE_QUESTIONS = {
+  detached: {
+    message: 'No agent is attached to this session. Discard it?',
+    detail:
+      'Discarding ends it and its pipes. Keeping it runs it in the background until its idle timeout, and an agent can reattach.',
+  },
+  ended: {
+    message: 'This session has ended. Discard it?',
+    detail:
+      'Discarding frees its memory, and agents can no longer reattach to it. Keeping it lets an agent reattach until you quit tapet.',
+  },
+}
+
+async function closeChoice(
+  window: BrowserWindow,
+  state: 'detached' | 'ended',
+): Promise<'discard' | 'keep'> {
   const preferences = await readPreferences()
   if (preferences.frozenWindowClose) {
     return preferences.frozenWindowClose
@@ -289,9 +308,7 @@ async function frozenCloseChoice(window: BrowserWindow): Promise<'discard' | 'ke
     buttons: ['Discard', 'Keep'],
     defaultId: 0,
     cancelId: 1,
-    message: 'This session has ended. Discard it?',
-    detail:
-      'Discarding frees its memory, and agents can no longer reattach to it. Keeping it lets an agent reattach until you quit tapet.',
+    ...CLOSE_QUESTIONS[state],
     checkboxLabel: 'Remember this choice',
     checkboxChecked: false,
   })

@@ -108,10 +108,12 @@ test('an agent shows a live log with a smart summary, then ends and reattaches i
 
     await call('session_end')
     await expect(panel.locator('.tapet-dot')).toHaveAttribute('data-state', 'ended')
+    await expect(window.locator('.tapet-session-status')).toContainText('Session ended at')
     expect(() => execSync(pipe, { input: 'late\n', stdio: 'pipe' })).toThrow()
 
     expect(JSON.parse(text(await call('session_attach', { session })))).toEqual({ session })
     await expect(panel.locator('.tapet-dot')).toHaveAttribute('data-state', 'idle')
+    await expect(window.locator('.tapet-session-status')).toHaveCount(0)
   } finally {
     await tapet.close()
     model.close()

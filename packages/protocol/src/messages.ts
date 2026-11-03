@@ -68,15 +68,19 @@ export interface Geometry {
   panels: PanelGeometry[]
 }
 
+// attached: an agent's MCP connection holds the session. detached: the connection closed, but the
+// session keeps running until its idle timeout. ended: panels are frozen and pipes refused.
+export type SessionState = 'attached' | 'detached' | 'ended'
+
 // Session process ↔ main process, over the utility process's parentPort.
 export type SessionToMain =
   | { type: 'ready'; url: string }
   // Creates, updates or reopens the window, taking focus if asked. A new window's port arrives
   // with 'windowOpened'.
-  | { type: 'showWindow'; window: WindowSettings; frozen: boolean; focus: boolean }
+  | { type: 'showWindow'; window: WindowSettings; state: SessionState; focus: boolean }
   | { type: 'focusWindow' }
   | { type: 'screenshot'; requestId: number; rect?: Rect }
-  | { type: 'frozen'; frozen: boolean }
+  | { type: 'state'; state: SessionState }
   // The session ended and its config says to remove its panels: close the window, end the process.
   | { type: 'discardSelf' }
   // Before a smart run: may it spend tokens under the daily cap?
@@ -117,14 +121,21 @@ export interface PanelSnapshot {
 
 // Session process ↔ window, over the window's MessagePort.
 export type SessionToWindow =
-  | { type: 'snapshot'; window: WindowSettings; panels: PanelSnapshot[]; frozen: boolean }
+  | {
+      type: 'snapshot'
+      window: WindowSettings
+      panels: PanelSnapshot[]
+      state: SessionState
+      // When the session ended, in milliseconds since 1970.
+      endedAt?: number
+    }
   | { type: 'window'; window: WindowSettings }
   | { type: 'panelAdded'; panel: PanelSnapshot }
   | { type: 'panelUpdated'; settings: PanelSettings }
   | { type: 'panelRemoved'; id: string }
   // Change sets per panel, in the order they happened.
   | { type: 'changes'; panels: Record<string, Change[]> }
-  | { type: 'frozen'; frozen: boolean }
+  | { type: 'state'; state: SessionState; endedAt?: number }
   | { type: 'geometry'; requestId: number }
   | { type: 'panelLive'; panel: string; live: boolean }
   | { type: 'smart'; panel: string; smart?: SmartView }
