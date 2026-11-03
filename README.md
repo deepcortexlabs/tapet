@@ -252,6 +252,16 @@ pnpm test
 
 Also `pnpm test:e2e` (builds the app, then drives it through MCP with Playwright), `pnpm lint`, `pnpm format` and `pnpm typecheck`. [FEATURES.md](FEATURES.md) lists what tapet does today, [DESIGN.md](DESIGN.md) holds the design and the decisions behind it, and `packages/cli/docs` holds the docs agents read.
 
+### Releasing
+
+`pnpm package` builds the npm package, `@deepcortexlabs/tapet`, into `packages/cli/dist`. Its version is `TAPET_VERSION` in `packages/protocol/src/index.ts`. To release, set it, commit, and push a matching tag:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The Release workflow runs CI on the tag and, when it passes, publishes the package to npm. It needs the `NPM_TOKEN` repository secret: a granular npm token that can read and write `@deepcortexlabs` packages and bypasses 2FA.
+
 ### Gallery
 
 The gallery is a static site in `site/`. Each example is a folder in `site/examples` with an `example.json` (title, summary, prompt, date, media) and its images or videos. `pnpm site` builds it into `site/dist`, and pushes to `main` that change `site/` publish it to GitHub Pages.

@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@tapet/app": "workspace:*",
-    "ai": "^7.0.157"
+    "ai": "^7.0.157",
+    "esbuild": "^0.28.2"
   }
 }

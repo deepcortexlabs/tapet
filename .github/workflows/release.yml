@@ -1,0 +1,50 @@
+name: Release
+
+# Pushing a tag v<TAPET_VERSION> runs CI on it and, when CI passes, publishes the npm package.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm provenance links the published package to this run.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package
+      # Installs the packed package outside the workspace and runs it, so a missing dependency, or a
+      # tag that doesn't match TAPET_VERSION, stops the release here.
+      - name: Check the package
+        working-directory: packages/cli/dist
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/check"
+          cd "$RUNNER_TEMP/check"
+          npm init -y
+          npm install "$RUNNER_TEMP"/deepcortexlabs-tapet-*.tgz
+          version="$(npx tapet --version)"
+          if [ "$version" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME doesn't match TAPET_VERSION $version"
+            exit 1
+          fi
+      - run: npm publish --provenance
+        working-directory: packages/cli/dist
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

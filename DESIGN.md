@@ -303,6 +303,7 @@ Agents get the full-path form of these commands from tool results. MCP controls 
 ## Development
 
 - **Repo:** a pnpm workspace. The internal packages are private and get bundled into the one published package.
+- **Published package:** `packages/cli/build.ts` generates it in `packages/cli/dist`: `cli/` holds the CLI and pipe entry bundles, `docs/` the agent docs and `app/` the built app. The npm packages the CLI uses stay dependencies, and the version is `TAPET_VERSION`, the only version number in the repo.
 - **Language and runtime:** TypeScript 6. (svelte-check doesn't support TypeScript 7 yet.) The CLI and MCP server need Node 24+; the app uses Electron's bundled Node.
 - **Tooling** (chosen for fitness and for how well AI agents work with it):
   - **electron-vite** builds the app: main process, preload, windows and background processes.
@@ -312,6 +313,7 @@ Agents get the full-path form of these commands from tool results. MCP controls 
   - **Playwright** `_electron` for end-to-end tests.
   - **Oxlint + Oxfmt** for linting and formatting.
 - **CI:** GitHub Actions runs the full suite on macOS, Windows and Linux (Linux under xvfb).
+- **Release:** pushing a tag `v<TAPET_VERSION>` runs CI on it. When CI passes, the packed package is installed outside the workspace and checked against the tag, then published with npm provenance, using a granular npm token (the `NPM_TOKEN` secret).
 - **First release:** 0.1.0.
 
 ## Graph library
