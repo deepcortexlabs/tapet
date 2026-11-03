@@ -756,6 +756,26 @@
   border-radius: 2px;
 }
 
+:where(.tapet-map-swatches) {
+  max-height: 12lh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  color: var(--tapet-fg);
+  /* A long list scrolls, so it takes the pointer that the rest of the box lets through. */
+  pointer-events: auto;
+}
+
+:where(.tapet-map-swatch) {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-inline-end: 6px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
 :where(.tapet-map-range) {
   display: flex;
   justify-content: space-between;

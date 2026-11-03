@@ -271,6 +271,37 @@ describe('view settings', () => {
     )
   })
 
+  it('checks map.layers with MapLibre, at the path of each problem', () => {
+    const map = (settings: object) => ({ ...base, preset: 'map', map: settings })
+    const circles = {
+      type: 'circle',
+      paint: { 'circle-color': ['match', ['get', 'party'], 'A', 'red', 'gray'] },
+    }
+    expect(
+      validateCreate(map({ layers: [circles], legend: [{ label: 'A', color: 'red' }] })).issues,
+    ).toEqual([])
+    expect(
+      validateCreate(map({ layers: [{ type: 'circle', paint: { 'circle-color': 5 } }] })).issues,
+    ).toEqual([
+      { path: 'map.layers.0.paint.circle-color', message: 'color expected, number found' },
+    ])
+    expect(paths(map({ layers: [circles, { type: 'line', pain: {} }] }))).toEqual([
+      'map.layers.1.pain',
+    ])
+    expect(paths(map({ layers: [{ type: 'raster' }] }))).toEqual(['map.layers.0.type'])
+    expect(
+      messageAt(map({ layers: [{ ...circles, source: 'x' }] }), 'map.layers.0.source'),
+    ).toContain("each layer draws the panel's features")
+    expect(messageAt(map({ layers: [] }), 'map.layers')).toContain('list of MapLibre layers')
+  })
+
+  it("leaves color to map.layers when it's set", () => {
+    const layers = [{ type: 'circle' }]
+    expect(
+      messageAt({ ...base, preset: 'map', map: { layers, color_by: 'votes' } }, 'map.color_by'),
+    ).toContain('color in the layer')
+  })
+
   it("drops the previous view's object when the view changes", () => {
     const table = validateCreate({ ...base, preset: 'table', table: { columns: ['a'] } })
       .settings as PanelSettings

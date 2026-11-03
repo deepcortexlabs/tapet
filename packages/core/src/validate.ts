@@ -1,3 +1,4 @@
+import { validateStyleMin, type StyleSpecification } from '@maplibre/maplibre-gl-style-spec'
 import type { ZodError } from 'zod'
 import { NETWORK_HOSTS, isAllowedUrl } from './network.ts'
 import { isPlainObject, withoutUndefined } from './object.ts'
@@ -20,6 +21,7 @@ import {
   VIEW_SETTINGS_NAMES,
   type ChartSettings,
   type GaugeSettings,
+  type MapSettings,
 } from './view-settings.ts'
 
 export interface Issue {
@@ -270,16 +272,8 @@ function viewIssues(settings: PanelSettings): Issue[] {
     return gaugeIssues(settings.gauge ?? {}, settings.format)
   }
 
-  // A named base map is OpenFreeMap's; any other style must be on an allowed host.
-  const baseMap = settings.map?.base_map
-  const named = baseMap === 'light' || baseMap === 'dark'
-  if (settings.view === 'map' && typeof baseMap === 'string' && !named && !isAllowedUrl(baseMap)) {
-    return [
-      {
-        path: 'map.base_map',
-        message: `map.base_map must be "light", "dark", an https style URL on an allowed host (${NETWORK_HOSTS.join(', ')}), or false for no base map`,
-      },
-    ]
+  if (settings.view === 'map') {
+    return mapIssues(settings.map ?? {})
   }
 
   if (settings.view === 'custom' && !settings.custom) {
@@ -391,6 +385,53 @@ function gaugeIssues(gauge: GaugeSettings, format: Format): Issue[] {
   }
 
   return issues
+}
+
+function mapIssues(map: MapSettings): Issue[] {
+  const issues: Issue[] = []
+  // A named base map is OpenFreeMap's; any other style must be on an allowed host.
+  const { base_map: baseMap, layers } = map
+  const named = baseMap === 'light' || baseMap === 'dark'
+  if (typeof baseMap === 'string' && !named && !isAllowedUrl(baseMap)) {
+    issues.push({
+      path: 'map.base_map',
+      message: `map.base_map must be "light", "dark", an https style URL on an allowed host (${NETWORK_HOSTS.join(', ')}), or false for no base map`,
+    })
+  }
+
+  if (!layers) {
+    return issues
+  }
+
+  for (const name of ['color_by', 'colors'] as const) {
+    if (map[name] !== undefined) {
+      issues.push({
+        path: `map.${name}`,
+        message: `map.${name} doesn't apply with map.layers: color in the layer, e.g. with an interpolate expression`,
+      })
+    }
+  }
+
+  return [...issues, ...layerIssues(layers)]
+}
+
+// MapLibre's style validator checks the layers, each drawn from the panel's features as the map
+// view does. Its paths, like layers[0].paint.circle-color, become map.layers.0.paint.circle-color.
+function layerIssues(layers: NonNullable<MapSettings['layers']>): Issue[] {
+  const style = {
+    version: 8,
+    sources: { tapet: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } } },
+    layers: layers.map((layer, index) => ({ ...layer, id: `layer-${index}`, source: 'tapet' })),
+  }
+  return validateStyleMin(style as StyleSpecification).map((error) => {
+    const match = /^layers(\S*): (.*)$/s.exec(error.message)
+    if (!match) {
+      return { path: 'map.layers', message: error.message }
+    }
+
+    const [, path = '', message = ''] = match
+    return { path: `map.layers${path.replaceAll(/\[(\d+)\]/g, '.$1')}`, message }
+  })
 }
 
 function hasNamedFields(format: Format, header: boolean | undefined): boolean {

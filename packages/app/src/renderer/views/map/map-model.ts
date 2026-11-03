@@ -344,3 +344,74 @@ export function defaultLayers(colors: MapColors, settings: MapSettings): LayerSp
     },
   ]
 }
+
+// The panel's layers: map.layers in place of tapet's own, each drawn from the panel's features.
+export function layersOf(colors: MapColors, settings: MapSettings): LayerSpecification[] {
+  if (!settings.layers) {
+    return defaultLayers(colors, settings)
+  }
+
+  return settings.layers.map(
+    (layer, index) =>
+      ({ ...layer, id: `tapet-layer-${index}`, source: SOURCE }) as LayerSpecification,
+  )
+}
+
+// A legend of categories, each with its color.
+export interface CategoryLegend {
+  title?: string
+  items: Array<{ label: string; color: string }>
+}
+
+const COLOR_PAINT = ['fill-color', 'circle-color', 'line-color', 'fill-extrusion-color']
+
+// The categories of a match on a property: ["match", ["get", field], value, color, …, fallback].
+// Values listed together share a row, and the fallback is "other".
+function matchLegend(value: unknown): CategoryLegend | undefined {
+  if (!Array.isArray(value) || value[0] !== 'match' || value.length < 5) {
+    return undefined
+  }
+
+  const [, input, ...cases] = value
+  const fallback: unknown = cases.pop()
+  const [operator, field]: unknown[] = Array.isArray(input) ? input : []
+  if (operator !== 'get' || typeof field !== 'string') {
+    return undefined
+  }
+
+  const items: CategoryLegend['items'] = []
+  for (let index = 0; index + 1 < cases.length; index += 2) {
+    const label: unknown = cases[index]
+    const color: unknown = cases[index + 1]
+    if (typeof color !== 'string') {
+      return undefined
+    }
+
+    items.push({ label: Array.isArray(label) ? label.join(', ') : String(label), color })
+  }
+
+  if (typeof fallback === 'string') {
+    items.push({ label: 'other', color: fallback })
+  }
+
+  return { title: field, items }
+}
+
+// The legend for categories: map.legend as given, or else the categories of the first of
+// map.layers that colors features by a match on a property.
+export function legendOf(settings: MapSettings): CategoryLegend | undefined {
+  if (settings.legend) {
+    return { items: settings.legend }
+  }
+
+  for (const layer of settings.layers ?? []) {
+    for (const property of COLOR_PAINT) {
+      const legend = matchLegend(layer.paint?.[property])
+      if (legend) {
+        return legend
+      }
+    }
+  }
+
+  return undefined
+}

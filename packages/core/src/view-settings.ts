@@ -12,6 +12,15 @@ export const GRAPH_LAYOUTS = ['force', 'hierarchical'] as const
 export const CUSTOM_SURFACES = ['dom', 'canvas2d', 'webgl'] as const
 // OpenFreeMap's light (positron) and dark styles, by name.
 export const BASE_MAPS = ['light', 'dark'] as const
+// The MapLibre layer types that draw GeoJSON features.
+export const MAP_LAYER_TYPES = [
+  'circle',
+  'fill',
+  'line',
+  'symbol',
+  'heatmap',
+  'fill-extrusion',
+] as const
 // A chart draws at most this many series, one per color of the theme's series palette.
 export const MAX_SERIES = 8
 
@@ -100,6 +109,35 @@ export const graphSettings = z.strictObject(
 const BASE_MAP_MESSAGE =
   'map.base_map must be "light", "dark", the URL of a MapLibre style, or false for no base map'
 
+const LAYERS_MESSAGE =
+  'map.layers must be a list of MapLibre layers, e.g. [{ type: "circle", paint: { "circle-color": "red" } }]'
+
+// tapet names each layer and draws it from the panel's features.
+function setByTapet(name: string) {
+  return z
+    .never({ error: `tapet sets ${name}: each layer draws the panel's features; leave it out` })
+    .optional()
+}
+
+// A MapLibre layer without its id and source. MapLibre's style validator checks the values.
+const mapLayer = z.strictObject(
+  {
+    type: oneOf("a layer's type", MAP_LAYER_TYPES),
+    paint: z.record(z.string(), z.unknown(), { error: 'paint must be an object' }).optional(),
+    layout: z.record(z.string(), z.unknown(), { error: 'layout must be an object' }).optional(),
+    filter: z.unknown().optional(),
+    minzoom: z.unknown().optional(),
+    maxzoom: z.unknown().optional(),
+    id: setByTapet('id'),
+    source: setByTapet('source'),
+    'source-layer': setByTapet('source-layer'),
+  },
+  { error: LAYERS_MESSAGE },
+)
+
+const LEGEND_MESSAGE =
+  'map.legend must be a list like [{ label: "Party A", color: "#4269d0" }, { label: "Party B", color: "#efb118" }]'
+
 export const mapSettings = z.strictObject(
   {
     base_map: z
@@ -125,6 +163,23 @@ export const mapSettings = z.strictObject(
       .optional(),
     tooltip: fieldList('map.tooltip', '["name", "votes"]').optional(),
     borders: z.boolean({ error: 'map.borders must be true or false' }).optional(),
+    layers: z
+      .array(mapLayer, { error: LAYERS_MESSAGE })
+      .min(1, { error: LAYERS_MESSAGE })
+      .optional(),
+    legend: z
+      .array(
+        z.strictObject(
+          {
+            label: z.string({ error: LEGEND_MESSAGE }).min(1, { error: LEGEND_MESSAGE }),
+            color: z.string({ error: LEGEND_MESSAGE }).min(1, { error: LEGEND_MESSAGE }),
+          },
+          { error: LEGEND_MESSAGE },
+        ),
+        { error: LEGEND_MESSAGE },
+      )
+      .min(1, { error: LEGEND_MESSAGE })
+      .optional(),
   },
   { error: 'map must be an object, e.g. { color_by: "votes" }' },
 )

@@ -13,6 +13,7 @@ import {
   buildMap,
   defaultLayers,
   labelField,
+  legendOf,
   neutralize,
   type MapColors,
 } from '../src/renderer/views/map/map-model.ts'
@@ -166,4 +167,24 @@ it("lets a feature's own colors win over the panel's", () => {
   expect(paint({}, 'tapet-fill', 'fill-color', {})).toBe(rgba('#2a78d6'))
   expect(paint({}, 'tapet-fill', 'fill-opacity', { 'fill-opacity': 0.2 })).toBe(0.2)
   expect(paint({}, 'tapet-line', 'line-color', { stroke: '#123456' })).toBe(rgba('#123456'))
+})
+
+it('reads a legend from a layer that colors by a match on a property, unless map.legend is set', () => {
+  const color = ['match', ['get', 'party'], 'A', '#ff0000', ['B', 'C'], '#0000ff', '#999999']
+  const layers = [
+    { type: 'circle' as const, paint: { 'circle-radius': 4 } },
+    { type: 'circle' as const, paint: { 'circle-color': color } },
+  ]
+  expect(legendOf({ layers })).toEqual({
+    title: 'party',
+    items: [
+      { label: 'A', color: '#ff0000' },
+      { label: 'B, C', color: '#0000ff' },
+      { label: 'other', color: '#999999' },
+    ],
+  })
+  const legend = [{ label: 'Party A', color: 'red' }]
+  expect(legendOf({ layers, legend })).toEqual({ items: legend })
+  expect(legendOf({ layers: [{ type: 'fill', paint: { 'fill-color': 'red' } }] })).toBeUndefined()
+  expect(legendOf({ color_by: 'votes' })).toBeUndefined()
 })

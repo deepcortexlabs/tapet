@@ -105,6 +105,20 @@ panel_create({ id: "votes", title: "Votes by town", preset: "map", map: { color_
   | `label`          | all                     | text beside a point, inside a polygon or along a line                   |
 
 - Labels sit above the base map's own labels, which give way where they collide. Without a base map, they're drawn in the window's font.
+- `map.layers`: your own [MapLibre layers](https://maplibre.org/maplibre-style-spec/layers/) in place of tapet's, for what the properties above don't cover: colors and sizes computed with expressions, heatmaps, extrusions. Each layer has a `type` (`circle`, `fill`, `line`, `symbol`, `heatmap` or `fill-extrusion`) and any of `paint`, `layout`, `filter`, `minzoom` and `maxzoom`. tapet sets `id` and `source`: every layer draws the panel's features. MapLibre's validator checks the layers, so a mistake fails the call with its path, e.g. `map.layers.0.paint.circle-color: color expected, number found`. With `layers`, color in the layer: `color_by` and `colors` don't apply. In symbol layers, `text-font: ["Noto Sans Regular"]` is the base maps' font. Results by town, colored by the winning party and sized by votes, the biggest on top:
+
+  ```
+  map: { layers: [{
+    type: "circle",
+    paint: {
+      "circle-color": ["match", ["get", "party"], "A", "#4269d0", "B", "#efb118", "#999999"],
+      "circle-radius": ["*", 0.03, ["sqrt", ["get", "votes"]]]
+    },
+    layout: { "circle-sort-key": ["get", "votes"] }
+  }] }
+  ```
+
+- `map.legend`: categories and their colors, e.g. `[{ label: "Party A", color: "#4269d0" }]`. Without it, the legend lists the values of the first layer colored by `["match", ["get", field], …]`, with the field as its title and the fallback color as "other"; without that either, it shows the `color_by` scale. A long legend scrolls past 12 rows.
 - `map.tooltip`: the properties shown when hovering a feature. Defaults to all of them.
 - The view zooms to the data when it first arrives; after that, the user moves it.
 - If the base map doesn't load within 15 seconds, you get a notice; `base_map: false` draws the features anyway.

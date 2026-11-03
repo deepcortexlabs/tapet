@@ -315,6 +315,54 @@ test('map: features in their own colors and sizes, and labels, offline', async (
   await tapet.call('panel_remove', { id: 'styled' })
 })
 
+test('map: MapLibre layers from the agent, with a legend from their colors', async () => {
+  // An invalid layer fails the call, with the path of the problem.
+  const invalid = text(
+    await tapet.call('panel_create', {
+      id: 'results',
+      title: 'Results',
+      preset: 'map',
+      map: { base_map: false, layers: [{ type: 'circle', paint: { 'circle-color': 5 } }] },
+    }),
+  )
+  expect(invalid).toContain('map.layers.0.paint.circle-color: color expected, number found')
+
+  const send = await createPanel({
+    id: 'results',
+    title: 'Results',
+    preset: 'map',
+    map: {
+      base_map: false,
+      layers: [
+        {
+          type: 'circle',
+          paint: {
+            'circle-color': ['match', ['get', 'party'], 'A', '#ff0000', 'B', '#0000ff', '#999999'],
+            'circle-radius': ['*', 0.1, ['sqrt', ['get', 'votes']]],
+          },
+          layout: { 'circle-sort-key': ['get', 'votes'] },
+        },
+      ],
+    },
+  })
+  const panel = page.locator('[data-panel=results]')
+  const town = (id: string, party: string, votes: number, lon: number) => ({
+    type: 'Feature',
+    id,
+    properties: { party, votes },
+    geometry: { type: 'Point', coordinates: [lon, 32] },
+  })
+  send(
+    `${[town('a', 'A', 40000, 34.8), town('b', 'B', 20000, 35)].map((item) => JSON.stringify(item)).join('\n')}\n`,
+  )
+  await expect(panel.locator('.tapet-map-legend .tapet-map-key')).toHaveText('party')
+  await expect(panel.locator('.tapet-map-swatches li')).toHaveText(['A', 'B', 'other'])
+  const red = async () =>
+    countPixels(await screenshot('results'), (r, g, b) => r > 180 && g < 100 && b < 100)
+  await expect.poll(red).toBeGreaterThan(200)
+  await tapet.call('panel_remove', { id: 'results' })
+})
+
 test('custom: agent code renders panel data in a sandbox, and its errors fail the call', async () => {
   const code = `
     const list = document.createElement('ul')

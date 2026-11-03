@@ -19,9 +19,11 @@
     SCALE,
     SOURCE,
     buildMap,
-    defaultLayers,
     labelField,
+    layersOf,
+    legendOf,
     neutralize,
+    type CategoryLegend,
     type MapColors,
   } from './map-model.ts'
 
@@ -41,7 +43,9 @@
   let count = $state(0)
   let loading = $state(true)
   let failure = $state<string>()
-  let legend = $state<{ field: string; low: string; high: string; gradient: string }>()
+  // The legend: categories with their colors, or the color_by scale.
+  let categories = $state<CategoryLegend>()
+  let scale = $state<{ field: string; low: string; high: string; gradient: string }>()
   let tip = $state<{ x: number; y: number; rows: Array<[string, string]> }>()
 
   let map: MapLibre | undefined
@@ -146,7 +150,7 @@
       return
     }
 
-    const layers = defaultLayers(colorsOf(current), settings())
+    const layers = layersOf(colorsOf(current), settings())
     const key = JSON.stringify(layers)
     if (key === layerKey) {
       return
@@ -181,7 +185,8 @@
     count = data.features.length
     const { color_by: field } = settings()
     const colors = ramp(theme)
-    legend =
+    categories = legendOf(settings())
+    scale =
       field && data.range
         ? {
             field,
@@ -361,11 +366,22 @@
     <p class="tapet-map-error">{failure}</p>
   {/if}
   <div class="tapet-map-info">
-    {#if legend}
+    {#if categories}
       <div class="tapet-map-legend">
-        <span class="tapet-map-key">{legend.field}</span>
-        <span class="tapet-map-ramp" style:background={legend.gradient}></span>
-        <span class="tapet-map-range"><span>{legend.low}</span><span>{legend.high}</span></span>
+        {#if categories.title}
+          <span class="tapet-map-key">{categories.title}</span>
+        {/if}
+        <ul class="tapet-map-swatches">
+          {#each categories.items as item, index (index)}
+            <li><span class="tapet-map-swatch" style:background={item.color}></span>{item.label}</li>
+          {/each}
+        </ul>
+      </div>
+    {:else if scale}
+      <div class="tapet-map-legend">
+        <span class="tapet-map-key">{scale.field}</span>
+        <span class="tapet-map-ramp" style:background={scale.gradient}></span>
+        <span class="tapet-map-range"><span>{scale.low}</span><span>{scale.high}</span></span>
       </div>
     {/if}
     <span class="tapet-map-count">

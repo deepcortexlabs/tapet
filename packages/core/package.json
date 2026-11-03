@@ -6,6 +6,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@maplibre/maplibre-gl-style-spec": "^26.5.0",
     "zod": "^4.6.7"
   }
 }
