@@ -1,0 +1,17 @@
+{
+  "title": "Wiki Nebula",
+  "summary": "Live 3D art driven by Wikipedia's real-time edit stream: every edit bursts glowing particles out of a rippling orb, colored by who made it and how big it was. The agent piped the public stream straight into a three.js panel, so the edits never passed through the model.",
+  "prompt": "use tapet to create a free form 3d art in real time , connect it to something in the internet",
+  "date": "2026-11-02",
+  "thumbnail": "nebula.png",
+  "media": [
+    {
+      "src": "nebula.mp4",
+      "alt": "A wireframe orb ripples as live Wikipedia edits burst out of it as glowing particles that swirl into an orbiting cloud"
+    },
+    {
+      "src": "nebula.png",
+      "alt": "A wireframe orb in the middle of a cloud of glowing particles, with the edit rate (13.8 edits/sec) and the latest edited page titles in the corner"
+    }
+  ]
+}
