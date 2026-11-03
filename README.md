@@ -25,6 +25,8 @@ What people use it for:
 - **Gauges:** the latest value of a metric, as a number, dial or bar.
 - **Layout in plain CSS:** the agent arranges panels with CSS it already knows. It checks the result with a screenshot.
 
+The [gallery](https://deepcortexlabs.github.io/tapet/) shows examples, each with the prompt that asked for it.
+
 ## How it works
 
 ```
@@ -249,6 +251,12 @@ pnpm test
 ```
 
 Also `pnpm test:e2e` (builds the app, then drives it through MCP with Playwright), `pnpm lint`, `pnpm format` and `pnpm typecheck`. [FEATURES.md](FEATURES.md) lists what tapet does today, [DESIGN.md](DESIGN.md) holds the design and the decisions behind it, and `packages/cli/docs` holds the docs agents read.
+
+### Gallery
+
+The gallery is a static site in `site/`. Each example is a folder in `site/examples` with an `example.json` (title, summary, prompt, date, media) and its images or videos. `pnpm site` builds it into `site/dist`, and pushes to `main` that change `site/` publish it to GitHub Pages.
+
+To add an example from a Claude Code session, run `/add-example <session-id>` in Claude Code in this repo. It reads the session's first prompt, drafts the title and summary, and asks you for the images or videos.
 
 ## License
 
