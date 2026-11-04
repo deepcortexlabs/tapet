@@ -38,7 +38,7 @@ jobs:
           mkdir "$RUNNER_TEMP/check"
           cd "$RUNNER_TEMP/check"
           npm init -y
-          npm install "$RUNNER_TEMP"/deepcortexlabs-tapet-*.tgz
+          npm install "$RUNNER_TEMP"/deepcortex-tapet-*.tgz
           version="$(npx tapet --version)"
           if [ "$version" != "${GITHUB_REF_NAME#v}" ]; then
             echo "::error::The tag $GITHUB_REF_NAME doesn't match TAPET_VERSION $version"

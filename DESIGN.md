@@ -26,8 +26,8 @@ The design was checked against these:
 ## Product
 
 - For agents only; there is no human-facing CLI beyond setup and logs.
-- Public open source under Apache-2.0. Published on npm as `@deepcortexlabs/tapet`; repo in the `deepcortexlabs` GitHub org.
-- macOS, Linux and Windows. Distributed through npm only (`npx -y @deepcortexlabs/tapet mcp`), with no code signing.
+- Public open source under Apache-2.0. Published on npm as `@deepcortex/tapet`; repo in the `deepcortexlabs` GitHub org.
+- macOS, Linux and Windows. Distributed through npm only (`npx -y @deepcortex/tapet mcp`), with no code signing.
 
 ## Architecture
 

@@ -254,13 +254,13 @@ Also `pnpm test:e2e` (builds the app, then drives it through MCP with Playwright
 
 ### Releasing
 
-`pnpm package` builds the npm package, `@deepcortexlabs/tapet`, into `packages/cli/dist`. Its version is `TAPET_VERSION` in `packages/protocol/src/index.ts`. To release, set it, commit, and push a matching tag:
+`pnpm package` builds the npm package, `@deepcortex/tapet`, into `packages/cli/dist`. Its version is `TAPET_VERSION` in `packages/protocol/src/index.ts`. To release, set it, commit, and push a matching tag:
 
 ```bash
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-The Release workflow runs CI on the tag and, when it passes, publishes the package to npm. It needs the `NPM_TOKEN` repository secret: a granular npm token that can read and write `@deepcortexlabs` packages and bypasses 2FA.
+The Release workflow runs CI on the tag and, when it passes, publishes the package to npm. It needs the `NPM_TOKEN` repository secret: a granular npm token that can read and write `@deepcortex` packages and bypasses 2FA.
 
 ### Gallery
 

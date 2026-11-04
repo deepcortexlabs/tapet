@@ -1,4 +1,4 @@
-// Builds the npm package, @deepcortexlabs/tapet, into dist/: the CLI and the pipe entry bundled
+// Builds the npm package, @deepcortex/tapet, into dist/: the CLI and the pipe entry bundled
 // with the workspace packages they use, the agent docs, and the built app. `pnpm package` runs it
 // after building the app. Its version is TAPET_VERSION.
 import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -73,7 +73,7 @@ cpSync(join(root, 'README.md'), join(dist, 'README.md'))
 
 const { license, engines } = manifest(root)
 const published = {
-  name: '@deepcortexlabs/tapet',
+  name: '@deepcortex/tapet',
   version: TAPET_VERSION,
   description: 'A display that AI agents direct over MCP to show things to their user.',
   license,
