@@ -75,7 +75,8 @@ a {
 }
 
 .card h2,
-.card p {
+.card p,
+.card-prompt {
   margin: 0.5rem 1rem 0;
 }
 
@@ -85,8 +86,28 @@ a {
 
 .card p {
   color: var(--muted);
-  flex: 1;
+  font-size: 0.85rem;
+}
+
+/* The prompt's first lines; the example page shows all of it. */
+.card-prompt {
+  margin-top: 0.75rem;
   margin-bottom: 1rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+}
+
+.card-prompt div {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  overflow: hidden;
 }
 
 .thumb {

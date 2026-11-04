@@ -68,6 +68,7 @@ function renderIndex(examples: Example[]) {
   <div class="thumb">${renderMedia(thumbnailOf(example), `examples/${example.slug}/`, true)}</div>
   <h2>${escape(example.title)}</h2>
   <p>${escape(example.summary)}</p>
+  <div class="card-prompt"><div>${escape(example.prompt)}</div></div>
 </a>`,
     )
     .join('\n')
