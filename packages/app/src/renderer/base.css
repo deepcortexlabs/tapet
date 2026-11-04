@@ -72,6 +72,33 @@
   overflow: hidden;
 }
 
+/* An expanded panel: lifted over the window by a double-click on its title bar. The agent's layout
+   stays as it is underneath, held by a placeholder, and the backdrop over it puts the panel back.
+   Its placement is !important so the agent's layout rules can't pin it in its old place. */
+:where(.tapet-expanded) {
+  position: fixed !important;
+  inset: 5vh 5vw !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  z-index: 1001 !important;
+  box-shadow: 0 12px 48px rgb(0 0 0 / 30%);
+}
+
+:where(.tapet-backdrop) {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  border: 0;
+  padding: 0;
+  background: rgb(0 0 0 / 35%);
+  cursor: zoom-out;
+}
+
 :where(.tapet-title) {
   padding: 6px 10px;
   font-weight: 600;

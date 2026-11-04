@@ -191,7 +191,7 @@ export function createTapetServer(options: ServerOptions = {}): Server {
     {
       name: 'window_inspect',
       description:
-        "Returns computed geometry: each panel's box in the window, and whether it overflows or has zero size. A cheap way to check your CSS without a screenshot.",
+        "Returns computed geometry: each panel's box in the window, and whether it overflows or has zero size. A panel the user expanded over the window (by double-clicking its title bar) is marked expanded: true; your layout is unchanged underneath. A cheap way to check your CSS without a screenshot.",
       schema: noArguments,
       run: () => forward('windowInspect'),
     },

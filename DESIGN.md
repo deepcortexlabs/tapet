@@ -209,6 +209,7 @@ smart: {
 ## Layout and window
 
 - **Only the agent arranges panels.** There is no manual layout, in v1 or later.
+- **Expanding a panel:** the user can still look closely at one panel: double-clicking its title bar expands it over most of the window (5% in from each edge), and clicking outside it, Escape or another double-click puts it back. It rearranges nothing: a placeholder copies the panel's grid or flex placement, so the layout underneath doesn't move. `window_inspect` marks the panel `expanded`, so the agent doesn't mistake it for its own layout.
 - **Real CSS:**
   - one global stylesheet (the `css` field of `window_update`) plus each panel's own `css`, which applies only inside that panel (wrapped in `@scope ([data-panel="<id>"])`);
   - a documented, stable DOM: the root is `#tapet`, each panel is `[data-panel="<id>"]` in creation order, there are documented classes for the title bar, body and smart output, and theme tokens are CSS variables;

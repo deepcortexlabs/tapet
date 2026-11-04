@@ -42,6 +42,7 @@ The official list of what tapet does today.
 - **View settings:** an object named after the view, e.g. `gauge: { max: 100 }`. Only the current view's object is allowed, and switching views drops the previous one.
 - **Retention:** `all`, `{ last: <items> }` or `{ seconds: <seconds> }`. It doesn't apply to `replace` panels.
 - **Follow:** append panels in the log, table and chart views keep the newest data in view. Scrolling or zooming away pauses it, "Jump to latest" or a double-click resumes it, and `follow` overrides it.
+- **Expanding:** double-clicking a panel's title bar expands it over most of the window while the layout stays as it is underneath. Clicking outside it, Escape or another double-click puts it back. `window_inspect` marks it `expanded`.
 - **Status:** the title-bar dot shows live (a pipe is feeding the panel), idle or ended. The window shows "No agent attached" or "Session ended at …" when no agent holds the session.
 
 ## Data

@@ -41,6 +41,7 @@ function measure(): Geometry {
         overflow:
           element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight,
         zeroSize: rect.width === 0 || rect.height === 0,
+        ...(element.classList.contains('tapet-expanded') ? { expanded: true as const } : {}),
       }
     },
   )

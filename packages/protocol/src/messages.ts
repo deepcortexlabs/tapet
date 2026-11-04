@@ -61,6 +61,9 @@ export interface PanelGeometry extends Rect {
   id: string
   overflow: boolean
   zeroSize: boolean
+  // The user expanded the panel over the window (by double-clicking its title bar): its box is the
+  // expanded one, not its place in the layout.
+  expanded?: true
 }
 
 export interface Geometry {
