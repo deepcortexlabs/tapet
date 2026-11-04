@@ -77,7 +77,7 @@ function renderIndex(examples: Example[]) {
     'tapet gallery',
     '',
     `<h1>Gallery</h1>
-<p class="lead">What agents showed their users with tapet, and the prompt that asked for it.</p>
+<p class="lead">Examples of tapet in use, each with the prompt that produced it.</p>
 <div class="grid">
 ${cards}
 </div>`,
