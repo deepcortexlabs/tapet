@@ -23,6 +23,12 @@ export function pipeCommand(): string[] {
   return [process.execPath, join(import.meta.dirname, `pipe-main${extension}`)]
 }
 
+// The feeder command window_update hands out: Node plus the run entry file, which loads only its
+// own code (see run-main.ts).
+export function runCommand(): string[] {
+  return [process.execPath, join(import.meta.dirname, `run-main${extension}`)]
+}
+
 export function commandLine(args: string[]): string {
   return args.map(quote).join(' ')
 }

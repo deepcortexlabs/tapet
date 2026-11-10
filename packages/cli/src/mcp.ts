@@ -22,7 +22,7 @@ import {
   type SessionConfig,
 } from '@tapet/protocol'
 import { requestSession } from './app.ts'
-import { TapetError, commandLine, pipeCommand, selfCommand } from './paths.ts'
+import { TapetError, commandLine, pipeCommand, runCommand, selfCommand } from './paths.ts'
 import { attachSession, type AttachedSession } from './session-client.ts'
 
 // Where sessions come from: the running app, or an in-process stand-in in tests.
@@ -53,7 +53,7 @@ const INSTRUCTIONS = `tapet is a window you direct to show things to your user. 
 - Record your tapet session id (window_update returns it). session_attach reconnects to it later.
 - If your MCP connection closes (your harness restarted, or this conversation went idle), your session keeps running: pipes keep flowing and panels keep updating. It ends after idle_timeout with no agent attached and no pipe open, an hour by default. Choose it with window_update: short for a quick look, or { idle_timeout: "never" } for a dashboard that must keep running.
 - Resuming is your job: keep your own record of your setup. window_get returns the current one.
-- Pipes like \`tail -f … | <pipe>\` never exit, so run them in a way that doesn't block you.
+- Start anything long-running that feeds panels (\`tail -f … | <pipe>\`, a loop, a script) as \`<run> <command>\`, with run from window_update, in a way that doesn't block you. tapet stops it, with everything it started, when the session ends; after session_attach, start it again.
 - Memory is yours to manage: set retention on panels that receive endless data.
 - A panel's smart trait lets an LLM summarize its new data; models_get lists the configured models.
 Call docs_get for details.`
@@ -127,16 +127,20 @@ export function createTapetServer(options: ServerOptions = {}): Server {
     )
   }
 
-  async function forward(method: RpcMethod, params?: unknown): Promise<CallToolResult> {
+  async function forward(
+    method: RpcMethod,
+    params?: unknown,
+    shape?: (value: unknown) => unknown,
+  ): Promise<CallToolResult> {
     const current = requireSession()
-    return result(await current.rpc(method, params), current.id)
+    return result(await current.rpc(method, params), current.id, shape)
   }
 
   const tools: Tool[] = [
     {
       name: 'window_update',
       description:
-        'Opens your tapet window, or changes it. The first call must include name (the window title). Fields you send replace those fields: name, width, height, x, y, always_on_top, css (one global stylesheet), and idle_timeout ({ seconds } or "never": how long the session lives with no agent attached and no pipe open; an hour by default). Panels are the children of #tapet, a vertical stack by default: lay them out with CSS on #tapet, e.g. #tapet { display: grid; grid-template-columns: 2fr 1fr }, and target one panel with [data-panel=<id>]. Then check the layout with window_inspect. Returns your tapet session id; record it so you can reconnect with session_attach.',
+        'Opens your tapet window, or changes it. The first call must include name (the window title). Fields you send replace those fields: name, width, height, x, y, always_on_top, css (one global stylesheet), and idle_timeout ({ seconds } or "never": how long the session lives with no agent attached and no pipe open; an hour by default). Panels are the children of #tapet, a vertical stack by default: lay them out with CSS on #tapet, e.g. #tapet { display: grid; grid-template-columns: 2fr 1fr }, and target one panel with [data-panel=<id>]. Then check the layout with window_inspect. Returns your tapet session id; record it so you can reconnect with session_attach. Also returns run: start long-running feeders as `<run> <command>` (e.g. a loop that runs pipe commands), and tapet stops them, with everything they started, when the session ends.',
       schema: windowUpdateSchema,
       async run(args) {
         if (!session?.isOpen()) {
@@ -147,7 +151,7 @@ export function createTapetServer(options: ServerOptions = {}): Server {
           session = await connect(await backend.createSession())
         }
 
-        return result(await session.rpc('windowUpdate', args), session.id)
+        return result(await session.rpc('windowUpdate', args), session.id, withRun)
       },
     },
     {
@@ -155,13 +159,13 @@ export function createTapetServer(options: ServerOptions = {}): Server {
       description:
         "Returns your window's current setup: window settings, the global CSS and every panel's settings. No data.",
       schema: noArguments,
-      run: () => forward('windowGet'),
+      run: () => forward('windowGet', undefined, withRun),
     },
     {
       name: 'window_focus',
       description: 'Brings your window to the front, reopening it if the user closed it.',
       schema: noArguments,
-      run: () => forward('windowFocus'),
+      run: () => forward('windowFocus', undefined, withRun),
     },
     {
       name: 'window_screenshot',
@@ -365,6 +369,12 @@ function toolSchema(schema: z.ZodType): { type: 'object' } {
       }
     },
   }) as { type: 'object' }
+}
+
+// Turns the session's run address into the feeder command agents prefix their commands with.
+function withRun(value: unknown): unknown {
+  const { run, ...rest } = value as { run: string }
+  return { ...rest, run: commandLine([...runCommand(), '-s', run, '--']) }
 }
 
 function textResult(value: unknown, isError = false): CallToolResult {

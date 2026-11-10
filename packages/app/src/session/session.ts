@@ -91,6 +91,9 @@ export function createSession(options: SessionOptions): Session {
   const panels = new Map<string, Panel>()
   const channels = new Map<string, Panel>()
   const notices: string[] = []
+  // `tapet run` connections: each holds a feeder that stops when its connection ends.
+  const runSecret = randomToken()
+  const runs = new Set<ServerResponse>()
   let window: WindowSettings = {}
   // Detached until `tapet mcp` attaches, which it does right after creating the session.
   let state: SessionState = 'detached'
@@ -427,6 +430,12 @@ export function createSession(options: SessionOptions): Session {
     setState('ended')
     refresh()
     log('session ended', { reason })
+    const resumable = config.ended_panels !== 'remove'
+    for (const run of runs) {
+      run.end(`${JSON.stringify({ ended: true, resumable })}\n`)
+    }
+
+    runs.clear()
     if (config.ended_panels === 'remove') {
       main.send({ type: 'discardSelf' })
     }
@@ -483,17 +492,22 @@ export function createSession(options: SessionOptions): Session {
       await showWindow(
         config.window_focus === 'update' || (config.window_focus === 'open' && !port),
       )
-      return { session: id }
+      return { session: id, run: runAddress() }
     },
 
     async windowGet() {
-      return { session: id, window, panels: [...panels.values()].map((panel) => panel.settings) }
+      return {
+        session: id,
+        run: runAddress(),
+        window,
+        panels: [...panels.values()].map((panel) => panel.settings),
+      }
     },
 
     async windowFocus() {
       await ensureWindow()
       main.send({ type: 'focusWindow' })
-      return { session: id }
+      return { session: id, run: runAddress() }
     },
 
     async windowScreenshot(params) {
@@ -787,6 +801,34 @@ export function createSession(options: SessionOptions): Session {
     })
   }
 
+  function runAddress(): string {
+    return `${address}/r/${runSecret}`
+  }
+
+  // A `tapet run` connection: open while the session is live. Ending it (or the connection
+  // closing, when tapet quits) tells the wrapper to stop its feeder.
+  function handleRun(res: ServerResponse) {
+    if (state === 'ended') {
+      reply(res, 409, {
+        error: `the tapet session ${id} has ended; an agent can resume it with session_attach, and this command then works again`,
+        session: id,
+        resumable: true,
+      })
+      return
+    }
+
+    res.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store' })
+    res.write(`${JSON.stringify({ session: id })}\n`)
+    runs.add(res)
+    log('run started', { runs: runs.size })
+    const heartbeat = setInterval(() => res.write('{}\n'), 15_000)
+    res.on('close', () => {
+      clearInterval(heartbeat)
+      runs.delete(res)
+      log('run stopped', { runs: runs.size })
+    })
+  }
+
   function handleAttach(res: ServerResponse) {
     if (attachment) {
       reply(res, 409, { error: 'this tapet session is attached to another live connection' })
@@ -893,6 +935,17 @@ export function createSession(options: SessionOptions): Session {
       }
 
       handlePipe(req, res, panel, url.searchParams.get('ignoreMalformed') === '1')
+      return
+    }
+
+    if (url.pathname.startsWith('/r/')) {
+      req.resume()
+      if (req.method !== 'GET' || !sameSecret(url.pathname.slice(3), runSecret)) {
+        reply(res, 404, { error: 'there is no such tapet session; it was discarded or tapet quit' })
+        return
+      }
+
+      handleRun(res)
       return
     }
 

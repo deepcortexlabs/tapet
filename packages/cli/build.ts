@@ -43,11 +43,12 @@ for (const name of ['cli', 'core', 'protocol']) {
 
 rmSync(dist, { recursive: true, force: true })
 
-// Two separate bundles, so the pipe entry still loads only the pipe's own code (see pipe-main.ts).
+// Separate bundles, so the pipe and run entries still load only their own code (see pipe-main.ts).
 await build({
   entryPoints: [
     join(import.meta.dirname, 'src', 'main.ts'),
     join(import.meta.dirname, 'src', 'pipe-main.ts'),
+    join(import.meta.dirname, 'src', 'run-main.ts'),
   ],
   outdir: join(dist, 'cli'),
   bundle: true,

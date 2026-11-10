@@ -4,6 +4,7 @@ import { TAPET_VERSION } from '@tapet/protocol'
 import { printLogs } from './logs.ts'
 import { runMcp } from './mcp.ts'
 import { runPipe } from './pipe.ts'
+import { runFeeder } from './run.ts'
 import { runSetup } from './setup.ts'
 
 const USAGE = `tapet ${TAPET_VERSION}: a window that AI agents direct over MCP.
@@ -12,6 +13,8 @@ const USAGE = `tapet ${TAPET_VERSION}: a window that AI agents direct over MCP.
   tapet setup                             download the Electron tapet runs on
   <command> | tapet -c <address>          stream data into a panel (agents get this from panel_create)
             [--ignore-malformed]          skip malformed items instead of stopping
+  tapet run -s <address> -- <command>     run a feeder that stops when its session ends
+                                          (agents get this from window_update)
   tapet logs --session <id>               show a session's log
 `
 
@@ -49,6 +52,20 @@ async function main(args: string[]): Promise<number> {
     }
 
     return await runPipe(address, { ignoreMalformed: values['ignore-malformed'] })
+  }
+
+  if (command === 'run') {
+    const { values, positionals } = parseArgs({
+      args: rest,
+      allowPositionals: true,
+      options: { session: { type: 'string', short: 's' } },
+    })
+    if (!values.session || positionals.length === 0) {
+      process.stderr.write(USAGE)
+      return 1
+    }
+
+    return await runFeeder(values.session, positionals)
   }
 
   if (command === '--version') {

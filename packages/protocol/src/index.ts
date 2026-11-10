@@ -8,7 +8,7 @@ export const TAPET_VERSION = '0.1.0'
 
 // Bump when these processes stop understanding each other. A mismatch makes `tapet mcp` refuse
 // to talk to an already running app.
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 2
 
 // The Electron release tapet runs on. `tapet setup` downloads exactly this one.
 export const ELECTRON_VERSION = '45.2.0'

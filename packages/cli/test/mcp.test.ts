@@ -77,7 +77,10 @@ it('needs a name to open the window, and returns the session id', async () => {
   expect(text(nameless)).toContain('name is required')
 
   const opened = await call('window_update', { name: 'logs' })
-  expect(JSON.parse(text(opened))).toEqual({ session: expect.stringMatching(/^s_/) })
+  expect(JSON.parse(text(opened))).toEqual({
+    session: expect.stringMatching(/^s_/),
+    run: expect.stringMatching(/run-main\.ts"? -s 127\.0\.0\.1:\d+\/r\/\S+ --$/),
+  })
 })
 
 it('asks for a window before other calls', async () => {

@@ -34,7 +34,7 @@ agent ──MCP──▶ tapet mcp ──▶ tapet window (one per agent session
 agent's shell:   <command> | <pipe> ──────▶ a panel in that window
 ```
 
-- **MCP carries control; shell pipes carry data.** `panel_create` returns a `pipe` command, and the agent runs `<command> | <pipe>` itself, with its harness's usual permissions.
+- **MCP carries control; shell pipes carry data.** `panel_create` returns a `pipe` command, and the agent runs `<command> | <pipe>` itself, with its harness's usual permissions. Long-running feeders run under the `run` command from `window_update`, so tapet stops them, with everything they started, when the session ends or tapet quits.
 - **Each panel declares its data:**
   - how the stream splits into items (`lines`, `ndjson`, `csv`, or the whole input as one document);
   - what each item does (append, replace, upsert or patch by key);
@@ -122,10 +122,10 @@ panel_create({
 // → { pipe: "node …/tapet/packages/cli/src/main.ts -c 127.0.0.1:53211/c/…" }
 ```
 
-The agent runs the pipe in its shell, in the background, since watch mode never exits:
+The agent runs the pipe in its shell, in the background and under `run`, since watch mode never exits:
 
 ```bash
-pnpm vitest --watch 2>&1 | <pipe>
+<run> bash -c 'pnpm vitest --watch 2>&1 | <pipe>'
 ```
 
 **"Which endpoints are slowest?"**
@@ -236,7 +236,7 @@ window_screenshot()
 
 | Tool                                           | What it does                                                       |
 | ---------------------------------------------- | ------------------------------------------------------------------ |
-| `window_update`, `window_get`, `window_focus`  | open and arrange the window; read back its setup                   |
+| `window_update`, `window_get`, `window_focus`  | open and arrange the window; read back its setup; return `run`     |
 | `window_screenshot`, `window_inspect`          | see what the user sees: a PNG, or each panel's geometry            |
 | `panel_create`, `panel_update`, `panel_remove` | panels and their settings; `panel_create` returns the pipe command |
 | `channel_write`                                | send data the agent already has, e.g. a few numbers                |

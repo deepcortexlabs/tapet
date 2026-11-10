@@ -4,9 +4,9 @@ tapet is a window you direct to show things to your user. Data doesn't pass thro
 
 ## Typical flow
 
-1. `window_update({ name: "api logs" })` opens your window and returns your session id. Record it.
+1. `window_update({ name: "api logs" })` opens your window and returns your session id and a `run` command. Record the id.
 2. `panel_create({ id: "api-log", title: "API log", preset: "log" })` returns a `pipe` command.
-3. In your shell: `tail -f app.log | <pipe>`. That pipe never exits on its own, so run it in a way that doesn't block you.
+3. In your shell: `<run> bash -c 'tail -f app.log | <pipe>'`. That pipe never exits on its own, so run it in a way that doesn't block you. `run` stops it when your session ends.
 4. Arrange panels with CSS (`window_update({ css })`, a panel's `css`), and check the result with `window_inspect` or `window_screenshot`.
 
 ## Topics
@@ -15,7 +15,7 @@ tapet is a window you direct to show things to your user. Data doesn't pass thro
 - `formats`: how a stream becomes items, and what each item does
 - `views`: what each view shows and how to configure it
 - `css`: the window's structure, classes and theme variables
-- `pipes`: pipe commands, buffering, malformed data, `channel_write`
+- `pipes`: pipe commands, feeders under `run`, buffering, malformed data, `channel_write`
 - `smart`: an LLM that summarizes a panel's new data
 - `config`: keys, models and behaviors the user configures
 - `sessions`: ids, reconnecting, ending, closed windows

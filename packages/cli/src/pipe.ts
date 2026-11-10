@@ -76,7 +76,7 @@ export async function runPipe(
 // same pipe command again works once it has.
 export const RESUMABLE = 75
 
-function describeFailure(body: string): { message: string; resumable: boolean } {
+export function describeFailure(body: string): { message: string; resumable: boolean } {
   try {
     const { error, session, resumable } = JSON.parse(body) as {
       error?: string
