@@ -121,7 +121,7 @@ panel_create({ id: "votes", title: "Votes by town", preset: "map", map: { color_
 - `map.legend`: categories and their colors, e.g. `[{ label: "Party A", color: "#4269d0" }]`. Without it, the legend lists the values of the first layer colored by `["match", ["get", field], …]`, with the field as its title and the fallback color as "other"; without that either, it shows the `color_by` scale. A long legend scrolls past 12 rows.
 - `map.tooltip`: the properties shown when hovering a feature. Defaults to all of them.
 - The view zooms to the data when it first arrives; after that, the user moves it.
-- The map shows one world, never copies side by side: it zooms out no further than the whole world in the panel's shorter side, and doesn't pan past the world's edges. Lines and polygons that cross 180° longitude are drawn split at the edges. Worldwide data in a panel much wider than tall leaves empty space on both sides: a flat world map is about as wide as it is tall, so give a world map a panel of that shape.
+- The map shows one world, never copies side by side: the world spans at least the panel's width, and the view doesn't pan past its edges. In a panel much wider than tall, data near the poles may start out of view; the user pans to it. Lines and polygons that cross 180° longitude are drawn split at the edges. Worldwide data in a panel much wider than tall leaves empty space on both sides: a flat world map is about as wide as it is tall, so give a world map a panel of that shape.
 - If the base map doesn't load within 15 seconds, you get a notice; `base_map: false` draws the features anyway.
 
 ## document

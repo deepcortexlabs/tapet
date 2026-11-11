@@ -11,12 +11,10 @@ import {
   SCALE,
   SOURCE,
   buildMap,
-  constrainWorld,
   defaultLayers,
   labelField,
   legendOf,
   neutralize,
-  worldZoom,
   type MapColors,
 } from '../src/renderer/views/map/map-model.ts'
 
@@ -189,41 +187,4 @@ it('reads a legend from a layer that colors by a match on a property, unless map
   expect(legendOf({ layers, legend })).toEqual({ items: legend })
   expect(legendOf({ layers: [{ type: 'fill', paint: { 'fill-color': 'red' } }] })).toBeUndefined()
   expect(legendOf({ color_by: 'votes' })).toBeUndefined()
-})
-
-it('lets a wide panel zoom out until the whole world fits its height', () => {
-  expect(worldZoom(1800, 512)).toBe(0)
-  expect(worldZoom(1024, 2048)).toBe(1)
-  expect(worldZoom(40, 40)).toBe(-2)
-  expect(worldZoom(0, 300)).toBe(0)
-})
-
-const wide = { width: 1800, height: 512, minZoom: 0, maxZoom: 22 }
-
-it('keeps a world narrower than the panel centered, with empty space beside it', () => {
-  const view = constrainWorld({ lng: 120, lat: 60 }, 0, wide)
-  expect(view.lng).toBeCloseTo(0)
-  expect(view.lat).toBeCloseTo(0)
-  expect(view.zoom).toBe(0)
-})
-
-it("doesn't zoom out past the whole world", () => {
-  expect(constrainWorld({ lng: 0, lat: 0 }, -1, wide).zoom).toBe(0)
-})
-
-it('stops a world bigger than the panel from panning past its edges', () => {
-  // At zoom 3 the world is 4096 px: the panel's 1800 px fit inside it across, its 512 px up and down.
-  const north = constrainWorld({ lng: 0, lat: 89 }, 3, wide)
-  const top = constrainWorld({ lng: 0, lat: north.lat + 1 }, 3, wide)
-  expect(north.lat).toBeLessThan(85.06)
-  expect(top.lat).toBeCloseTo(north.lat)
-
-  const east = constrainWorld({ lng: 179, lat: 0 }, 3, wide)
-  expect(east.lng).toBeCloseTo(180 - (900 / 4096) * 360)
-})
-
-it('keeps a point the user pans to when it is inside the world', () => {
-  const view = constrainWorld({ lng: 10, lat: 45 }, 4, wide)
-  expect(view.lng).toBeCloseTo(10)
-  expect(view.lat).toBeCloseTo(45)
 })
