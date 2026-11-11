@@ -40,7 +40,8 @@ The [gallery](https://deepcortexlabs.github.io/tapet/) shows examples, each with
 
 <img alt="The agent controls the tapet window over MCP. Its shell pipes command output straight into a panel, so the data never passes through the agent's context." src="assets/how-it-works.svg" width="820" />
 
-- **MCP carries control; shell pipes carry data.** `panel_create` returns a `pipe` command, and the agent runs `<command> | <pipe>` itself, with its harness's usual permissions. Long-running feeders run under the `run` command from `window_update`, so tapet stops them, with everything they started, when the session ends or tapet quits.
+- **MCP carries control; shell pipes carry data.** `panel_create` returns a `pipe` command, and the agent runs `<command> | <pipe>` itself, with its harness's usual permissions.
+- **Feeders end with the session:** the agent starts long-running commands, like `tail -f app.log`, under `tapet run`. When the session ends, is discarded or tapet quits, tapet stops them and everything they started. `window_update` gives the agent the exact command.
 - **Each panel declares its data:**
   - how the stream splits into items (`lines`, `ndjson`, `csv`, or the whole input as one document);
   - what each item does (append, replace, upsert or patch by key);

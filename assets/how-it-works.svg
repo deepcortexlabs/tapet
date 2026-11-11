@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 300" width="820" height="300" role="img" aria-label="The agent controls the tapet window over MCP. Its shell pipes command output straight into a panel, so the data never passes through the agent's context.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 300" width="820" height="300" role="img" aria-label="The agent controls the tapet window over MCP. Its shell runs tail -f app.log under tapet run and pipes the output straight into a panel, so the data never passes through the agent's context.">
   <style>
     svg { --fg: #1f2328; --muted: #59636e; --line: #d0d7de; --box: #f6f8fa; --accent: #0969da; }
     @media (prefers-color-scheme: dark) {
@@ -20,19 +20,19 @@
   </defs>
 
   <!-- agent -->
-  <rect class="box" x="20" y="24" width="220" height="92" rx="10"/>
+  <rect class="box" x="20" y="24" width="300" height="92" rx="10"/>
   <text x="40" y="58" font-size="18" font-weight="600">agent</text>
   <text x="40" y="84" font-size="14" class="muted">its context holds the</text>
   <text x="40" y="103" font-size="14" class="muted">conversation, not the data</text>
 
   <!-- shell -->
-  <rect class="box" x="20" y="184" width="220" height="92" rx="10"/>
+  <rect class="box" x="20" y="184" width="300" height="92" rx="10"/>
   <text x="40" y="218" font-size="18" font-weight="600">agent's shell</text>
-  <text x="40" y="250" font-size="14" class="mono muted">tail -f app.log</text>
+  <text x="40" y="250" font-size="13" class="mono muted">tapet run -- tail -f app.log | …</text>
 
   <!-- agent runs the command -->
   <path class="control" d="M130 118 V180" marker-end="url(#hm)"/>
-  <text x="142" y="154" font-size="13" class="muted">runs</text>
+  <text x="142" y="154" font-size="13" class="muted">runs, in the background</text>
 
   <!-- tapet window -->
   <rect class="box" x="540" y="24" width="260" height="252" rx="10"/>
@@ -52,12 +52,13 @@
   <rect x="570" y="242" width="160" height="6" rx="3" class="accent" opacity="0.55"/>
 
   <!-- control: MCP -->
-  <path class="control" d="M244 70 H550" marker-end="url(#hm)"/>
-  <text x="300" y="58" font-size="14" font-weight="600" class="muted">MCP: control</text>
-  <text x="300" y="92" font-size="13" class="mono muted">panel_create → pipe</text>
+  <path class="control" d="M324 70 H550" marker-end="url(#hm)"/>
+  <text x="345" y="58" font-size="14" font-weight="600" class="muted">MCP: control</text>
+  <text x="345" y="92" font-size="13" class="mono muted">window_update → run</text>
+  <text x="345" y="110" font-size="13" class="mono muted">panel_create → pipe</text>
 
   <!-- data: pipe -->
-  <path class="data" d="M246 230 H546" marker-end="url(#ha)"/>
-  <text x="300" y="216" font-size="14" font-weight="600" class="accent">| pipe: data</text>
-  <text x="300" y="258" font-size="13" class="muted">straight to the panel, live</text>
+  <path class="data" d="M326 230 H546" marker-end="url(#ha)"/>
+  <text x="345" y="216" font-size="14" font-weight="600" class="accent">| pipe: data</text>
+  <text x="345" y="258" font-size="13" class="muted">straight to the panel, live</text>
 </svg>
