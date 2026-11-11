@@ -415,3 +415,49 @@ export function legendOf(settings: MapSettings): CategoryLegend | undefined {
 
   return undefined
 }
+
+// The view shows one world, without copies beside it. The smallest zoom keeps the whole world inside
+// the panel's shorter side, so the user can't zoom out into empty space. At zoom 0 the Mercator world
+// is a 512 px square, and MapLibre allows no zoom below -2.
+export function worldZoom(width: number, height: number): number {
+  const side = Math.min(width, height)
+  if (side <= 0) {
+    return 0
+  }
+
+  return Math.max(-2, Math.log2(side / 512))
+}
+
+// Where the view may go, in place of MapLibre's own rule, which without world copies zooms in until the
+// world fills the panel's width. A world smaller than the panel along an axis stays centered on it, with
+// empty space around; a larger one can't be panned past its edges.
+export function constrainWorld(
+  center: { lng: number; lat: number },
+  zoom: number,
+  view: { width: number; height: number; minZoom: number; maxZoom: number },
+): { lng: number; lat: number; zoom: number } {
+  const clamped = Math.min(view.maxZoom, Math.max(view.minZoom, zoom))
+  const size = 512 * 2 ** clamped
+  const lng = ((((center.lng + 180) % 360) + 360) % 360) - 180
+  const x = keepInside(((lng + 180) / 360) * size, size, view.width)
+  const y = keepInside(mercatorY(center.lat) * size, size, view.height)
+  return { lng: (x / size) * 360 - 180, lat: latitudeOf(y / size), zoom: clamped }
+}
+
+function keepInside(position: number, size: number, screen: number): number {
+  if (size <= screen) {
+    return size / 2
+  }
+
+  return Math.min(size - screen / 2, Math.max(screen / 2, position))
+}
+
+// A latitude's place on the Mercator world, from 0 at the top to 1 at the bottom.
+function mercatorY(lat: number): number {
+  const limited = Math.max(-85.051129, Math.min(85.051129, lat))
+  return (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (limited * Math.PI) / 360))) / 360
+}
+
+function latitudeOf(y: number): number {
+  return (360 / Math.PI) * Math.atan(Math.exp(((180 - y * 360) * Math.PI) / 180)) - 90
+}

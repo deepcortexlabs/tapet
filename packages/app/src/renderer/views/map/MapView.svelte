@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { MapSettings } from '@tapet/core'
   import {
+    LngLat,
     Map as MapLibre,
     setWorkerUrl,
     type ErrorEvent,
@@ -19,10 +20,12 @@
     SCALE,
     SOURCE,
     buildMap,
+    constrainWorld,
     labelField,
     layersOf,
     legendOf,
     neutralize,
+    worldZoom,
     type CategoryLegend,
     type MapColors,
   } from './map-model.ts'
@@ -276,6 +279,15 @@
       attributionControl: { compact: true },
       center: [0, 20],
       zoom: 1,
+      renderWorldCopies: false,
+      minZoom: worldZoom(container.clientWidth, container.clientHeight),
+      transformConstrain: (lngLat, zoom) => {
+        const width = container?.clientWidth ?? 0
+        const height = container?.clientHeight ?? 0
+        const view = { width, height, minZoom: worldZoom(width, height), maxZoom: map?.getMaxZoom() ?? 22 }
+        const { lng, lat, zoom: constrained } = constrainWorld(lngLat, zoom, view)
+        return { center: new LngLat(lng, lat), zoom: constrained }
+      },
     })
     // A new style starts empty: the panel's source and layers go back on it.
     map.on('style.load', () => {
@@ -330,7 +342,14 @@
   // The panel's CSS may have changed the theme's colors; it applies a frame later.
   const stopSettings = bridge.onSettings(() => requestAnimationFrame(restyle))
   const stopTheme = onThemeChange(restyle)
-  const resizes = new ResizeObserver(() => map?.resize())
+  const resizes = new ResizeObserver(() => {
+    if (!map || !container) {
+      return
+    }
+
+    map.setMinZoom(worldZoom(container.clientWidth, container.clientHeight))
+    map.resize()
+  })
 
   $effect(() => {
     if (!container) {
