@@ -1,17 +1,26 @@
-<h1><img alt="tapet" src="assets/logo.png" width="320" /></h1>
+<h1 align="center"><img alt="tapet" src="assets/logo.png" width="320" /></h1>
 
-tapet is a display that AI agents direct over MCP to show things to their user.
+<p align="center">
+  <a href="https://deepcortexlabs.github.io/tapet/">Gallery</a> ·
+  <a href="#setup">Setup</a> ·
+  <a href="packages/cli/docs">Docs for agents</a>
+</p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/views-dark.png" />
-  <img alt="A tapet window with a table of jobs, a markdown report with math and a diagram, a CPU dial and a memory bar" src="assets/views-light.png" />
-</picture>
+<p align="center">
+  <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue" />
+  <img alt="Node 24 or later" src="https://img.shields.io/badge/node-%E2%89%A524-blue" />
+  <img alt="macOS, Linux and Windows" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue" />
+</p>
+
+tapet is a window your AI agent fills with live views of your work: logs, tables, charts, graphs, maps and reports. The agent lays out panels over MCP, then pipes its own shell commands straight into them. The data never passes through the agent's context, so a log that never ends or a query with a million rows takes up none of it.
+
+<img alt="Bluesky Pulse: eight live panels fed by the Bluesky firehose, with a galaxy of language clusters filling with posts, a follow graph, an events-per-second dial, trending hashtags, hot posts, and charts of events by type and posts by language" src="assets/hero.webp" />
+
+<p align="center"><sub><a href="https://deepcortexlabs.github.io/tapet/">Bluesky Pulse</a>: the whole Bluesky firehose, about 220 events a second, in eight live panels. One agent prompt built it.</sub></p>
 
 ## What it's for
 
-Coding agents work with a lot of data their users want to see: test runs, logs, query results, reports, metrics. Usually the agent reads that data into its context and retells it in the chat. That costs tokens, and it can't show anything that keeps changing.
-
-With tapet, the agent opens a window and lays out panels over MCP. Then it pipes command output from its own shell straight into those panels. The data never passes through the model, so a log that never ends or a result with a million rows costs the agent nothing. The user watches it live.
+Coding agents work with a lot of data their users want to see: test runs, logs, query results, reports, metrics. Usually the agent reads that data into its context and retells it in the chat. That fills its context, and it can't show anything that keeps changing.
 
 What people use it for:
 
@@ -29,10 +38,7 @@ The [gallery](https://deepcortexlabs.github.io/tapet/) shows examples, each with
 
 ## How it works
 
-```
-agent ──MCP──▶ tapet mcp ──▶ tapet window (one per agent session)
-agent's shell:   <command> | <pipe> ──────▶ a panel in that window
-```
+<img alt="The agent controls the tapet window over MCP. Its shell pipes command output straight into a panel, so the data never passes through the agent's context." src="assets/how-it-works.svg" width="820" />
 
 - **MCP carries control; shell pipes carry data.** `panel_create` returns a `pipe` command, and the agent runs `<command> | <pipe>` itself, with its harness's usual permissions. Long-running feeders run under the `run` command from `window_update`, so tapet stops them, with everything they started, when the session ends or tapet quits.
 - **Each panel declares its data:**

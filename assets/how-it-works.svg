@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 300" width="820" height="300" role="img" aria-label="The agent controls the tapet window over MCP. Its shell pipes command output straight into a panel, so the data never passes through the agent's context.">
+  <style>
+    svg { --fg: #1f2328; --muted: #59636e; --line: #d0d7de; --box: #f6f8fa; --accent: #0969da; }
+    @media (prefers-color-scheme: dark) {
+      svg { --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --box: #151b23; --accent: #4493f8; }
+    }
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--fg); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { fill: var(--muted); }
+    .accent { fill: var(--accent); }
+    .box { fill: var(--box); stroke: var(--line); stroke-width: 1.5; }
+    .control { stroke: var(--muted); stroke-width: 1.5; fill: none; stroke-dasharray: 5 5; }
+    .data { stroke: var(--accent); stroke-width: 6; fill: none; stroke-linecap: round; }
+    .head-muted { fill: var(--muted); }
+    .head-accent { fill: var(--accent); }
+  </style>
+  <defs>
+    <marker id="hm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="head-muted"/></marker>
+    <marker id="ha" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="head-accent"/></marker>
+  </defs>
+
+  <!-- agent -->
+  <rect class="box" x="20" y="24" width="220" height="92" rx="10"/>
+  <text x="40" y="58" font-size="18" font-weight="600">agent</text>
+  <text x="40" y="84" font-size="14" class="muted">its context holds the</text>
+  <text x="40" y="103" font-size="14" class="muted">conversation, not the data</text>
+
+  <!-- shell -->
+  <rect class="box" x="20" y="184" width="220" height="92" rx="10"/>
+  <text x="40" y="218" font-size="18" font-weight="600">agent's shell</text>
+  <text x="40" y="250" font-size="14" class="mono muted">tail -f app.log</text>
+
+  <!-- agent runs the command -->
+  <path class="control" d="M130 118 V180" marker-end="url(#hm)"/>
+  <text x="142" y="154" font-size="13" class="muted">runs</text>
+
+  <!-- tapet window -->
+  <rect class="box" x="540" y="24" width="260" height="252" rx="10"/>
+  <circle cx="560" cy="44" r="5" fill="#ff5f57"/>
+  <circle cx="577" cy="44" r="5" fill="#febc2e"/>
+  <circle cx="594" cy="44" r="5" fill="#28c840"/>
+  <text x="614" y="49" font-size="14" font-weight="600">tapet</text>
+  <rect x="556" y="64" width="228" height="64" rx="6" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+  <text x="570" y="90" font-size="13" class="muted">window and panels</text>
+  <text x="570" y="110" font-size="13" class="muted">laid out over MCP</text>
+  <rect x="556" y="140" width="228" height="120" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+  <text x="570" y="164" font-size="13" font-weight="600">Logs</text>
+  <rect x="570" y="178" width="180" height="6" rx="3" class="accent" opacity="0.55"/>
+  <rect x="570" y="194" width="140" height="6" rx="3" class="accent" opacity="0.4"/>
+  <rect x="570" y="210" width="196" height="6" rx="3" class="accent" opacity="0.55"/>
+  <rect x="570" y="226" width="120" height="6" rx="3" class="accent" opacity="0.4"/>
+  <rect x="570" y="242" width="160" height="6" rx="3" class="accent" opacity="0.55"/>
+
+  <!-- control: MCP -->
+  <path class="control" d="M244 70 H550" marker-end="url(#hm)"/>
+  <text x="300" y="58" font-size="14" font-weight="600" class="muted">MCP: control</text>
+  <text x="300" y="92" font-size="13" class="mono muted">panel_create → pipe</text>
+
+  <!-- data: pipe -->
+  <path class="data" d="M246 230 H546" marker-end="url(#ha)"/>
+  <text x="300" y="216" font-size="14" font-weight="600" class="accent">| pipe: data</text>
+  <text x="300" y="258" font-size="13" class="muted">straight to the panel, live</text>
+</svg>
