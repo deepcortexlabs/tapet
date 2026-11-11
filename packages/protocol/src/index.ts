@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-export const TAPET_VERSION = '0.1.0'
+export const TAPET_VERSION = '0.2.0'
 
 // Bump when these processes stop understanding each other. A mismatch makes `tapet mcp` refuse
 // to talk to an already running app.
