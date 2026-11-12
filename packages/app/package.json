@@ -13,7 +13,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.web.json"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.92",
+    "@ai-sdk/anthropic": "^4.0.99",
     "@ai-sdk/google": "^4.0.108",
     "@ai-sdk/openai": "^4.0.105",
     "@cosmos.gl/graph": "^3.5.1",
