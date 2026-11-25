@@ -45,7 +45,8 @@ a {
 }
 
 .logo {
-  height: 40px;
+  display: block;
+  height: 120px;
 }
 
 .lead {
