@@ -267,7 +267,7 @@ Also `pnpm test:e2e` (builds the app, then drives it through MCP with Playwright
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-The Release workflow runs CI on the tag and, when it passes, publishes the package to npm. It needs the `NPM_TOKEN` repository secret: a granular npm token that can read and write `@deepcortex` packages and bypasses 2FA.
+The Release workflow runs CI on the tag and, when it passes, publishes the package to npm. It uses npm trusted publishing, so it needs no token: on npmjs.com, the package's settings name this repository's `release.yml` as a trusted publisher that may run `npm publish`.
 
 ### Gallery
 

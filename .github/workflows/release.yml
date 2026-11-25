@@ -17,7 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # npm provenance links the published package to this run.
+      # npm trusted publishing: npm accepts the publish from this workflow's identity, with no
+      # token, and attaches provenance that links the package to this run.
       id-token: write
     steps:
       - uses: actions/checkout@v7
@@ -44,7 +45,5 @@ jobs:
             echo "::error::The tag $GITHUB_REF_NAME doesn't match TAPET_VERSION $version"
             exit 1
           fi
-      - run: npm publish --provenance
+      - run: npm publish
         working-directory: packages/cli/dist
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

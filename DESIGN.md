@@ -317,7 +317,7 @@ Agents get the full-path form of these commands from tool results. MCP controls 
   - **Playwright** `_electron` for end-to-end tests.
   - **Oxlint + Oxfmt** for linting and formatting.
 - **CI:** GitHub Actions runs the full suite on macOS, Windows and Linux (Linux under xvfb).
-- **Release:** pushing a tag `v<TAPET_VERSION>` runs CI on it. When CI passes, the packed package is installed outside the workspace and checked against the tag, then published with npm provenance, using a granular npm token (the `NPM_TOKEN` secret).
+- **Release:** pushing a tag `v<TAPET_VERSION>` runs CI on it. When CI passes, the packed package is installed outside the workspace and checked against the tag, then published with npm provenance through npm trusted publishing, which needs no token.
 - **First release:** 0.1.0.
 
 ## Graph library
