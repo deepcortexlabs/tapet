@@ -70,6 +70,8 @@ test('double-clicking a title bar expands the panel over the window, and the lay
 
     // The default layout, panels stacked in a flex column, stays put too.
     await tapet.call('window_update', { css: '' })
+    // The window lays out again a moment after the call returns.
+    await expect.poll(async () => (await box('a'))?.width).toBeGreaterThan(before.a?.width ?? 0)
     const stacked = { a: await box('a'), c: await box('c') }
     await panel('b').locator('.tapet-title').dblclick()
     await expect(panel('b')).toHaveClass(/tapet-expanded/)
