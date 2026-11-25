@@ -71,6 +71,7 @@ writeFileSync(
 )
 
 cpSync(join(root, 'README.md'), join(dist, 'README.md'))
+cpSync(join(root, 'LICENSE'), join(dist, 'LICENSE'))
 
 const { license, engines } = manifest(root)
 const published = {
