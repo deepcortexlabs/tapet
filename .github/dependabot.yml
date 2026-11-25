@@ -9,3 +9,10 @@ updates:
     directory: '/' # Location of package manifests
     schedule:
       interval: 'weekly'
+    groups:
+      # Each release of these pins one exact @ai-sdk/provider, so their types
+      # only agree when they are updated together.
+      ai-sdk:
+        patterns:
+          - 'ai'
+          - '@ai-sdk/*'
