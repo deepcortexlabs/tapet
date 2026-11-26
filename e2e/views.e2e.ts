@@ -31,6 +31,12 @@ async function screenshot(panel: string): Promise<Buffer> {
   return Buffer.from(image?.type === 'image' ? image.data : '', 'base64')
 }
 
+// A screenshot shows the last frame the window drew, which can be one behind what the page
+// already holds, so this waits for one that shows more than the empty panel did.
+async function expectMoreThan(panel: string, empty: Buffer) {
+  await expect.poll(async () => (await screenshot(panel)).length).toBeGreaterThan(empty.length)
+}
+
 test('table: rows, sorting by a column, and explicit columns', async () => {
   const send = await createPanel({ id: 'jobs', title: 'Jobs', preset: 'table' })
   const panel = page.locator('[data-panel=jobs]')
@@ -42,7 +48,7 @@ test('table: rows, sorting by a column, and explicit columns', async () => {
   await expect(panel.locator('.tapet-table-heading')).toHaveText(['name', 'runs', 'tags'])
   await expect(names).toHaveText(['b', 'a', 'c'])
   await expect(panel.locator('.tapet-table-row').last()).toContainText('["x"]')
-  expect((await screenshot('jobs')).length).toBeGreaterThan(empty.length)
+  await expectMoreThan('jobs', empty)
 
   await panel.getByTitle('Sort by runs').click()
   await expect(names).toHaveText(['a', 'b', 'c'])
@@ -80,7 +86,7 @@ test('document: markdown with code, math and diagrams; sanitized HTML; images', 
   await expect(panel.locator('pre code.language-js .hljs-keyword')).toHaveText('const')
   await expect(panel.locator('.katex')).toHaveCount(1)
   await expect(panel.locator('.tapet-mermaid svg')).toHaveCount(1)
-  expect((await screenshot('doc')).length).toBeGreaterThan(empty.length)
+  await expectMoreThan('doc', empty)
 
   await tapet.call('panel_update', { id: 'doc', document: { content: 'html' } })
   send('<style>p { color: rgb(255, 0, 0) }</style><p>Styled</p><script>window.ran = true</script>')
@@ -116,7 +122,7 @@ test('gauge: the latest value, thresholds, styles, and data it cannot show', asy
 
   send('42\n')
   await expect(panel.locator('.tapet-gauge-value')).toHaveText('42%')
-  expect((await screenshot('cpu')).length).toBeGreaterThan(empty.length)
+  await expectMoreThan('cpu', empty)
   send('95\n')
   await expect(panel.locator('.tapet-gauge-value')).toHaveText('95%')
   await expect(panel.locator('.tapet-gauge-value')).toHaveCSS('color', 'rgb(215, 0, 21)')
@@ -152,7 +158,7 @@ test('chart: uPlot series with a legend and a readout, and a Vega-Lite spec', as
   const points = Array.from({ length: 20 }, (_, i) => ({ i, p50: 10 + (i % 5), p99: 40 + (i % 7) }))
   send(`${points.map((point) => JSON.stringify(point)).join('\n')}\n`)
   await expect(panel.locator('.u-legend .u-label')).toHaveText(['p50', 'p99'])
-  expect((await screenshot('latency')).length).toBeGreaterThan(empty.length)
+  await expectMoreThan('latency', empty)
   await panel.locator('.u-over').hover()
   await expect(panel.locator('.tapet-chart-tooltip-row')).toHaveCount(2)
 
@@ -207,7 +213,7 @@ test('graph: nodes and edges, including nodes only edges mention, in both layout
   send(`${items.map((item) => JSON.stringify(item)).join('\n')}\n`)
   await expect(panel.locator('.tapet-graph-count')).toHaveText('3 nodes · 3 edges')
   await expect(panel.locator('.tapet-graph-canvas canvas')).toHaveCount(1)
-  expect((await screenshot('deps')).length).toBeGreaterThan(empty.length)
+  await expectMoreThan('deps', empty)
 
   await tapet.call('panel_update', { id: 'deps', graph: { label: 'name', layout: 'hierarchical' } })
   await expect(panel.locator('.tapet-graph-count')).toHaveText('3 nodes · 3 edges')
@@ -253,7 +259,7 @@ test('map: GeoJSON features colored by a value, with a legend and a tooltip, off
   )
   await expect(panel.locator('.tapet-map-count')).toHaveText('3 features')
   await expect(panel.locator('.tapet-map-range')).toHaveText('100900')
-  expect((await screenshot('votes')).length).toBeGreaterThan(empty.length)
+  await expectMoreThan('votes', empty)
 
   // The view zoomed to the data, so a quarter of the way across is inside the western square.
   const box = await panel.locator('.tapet-map-canvas').boundingBox()

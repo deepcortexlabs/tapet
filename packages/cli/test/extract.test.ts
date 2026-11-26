@@ -5,6 +5,7 @@ import {
   readFileSync,
   readdirSync,
   readlinkSync,
+  realpathSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -145,12 +146,20 @@ it('refuses an entry written through a link', async () => {
   expect(readdirSync(join(out, 'real'))).toEqual([])
 })
 
-// Each link's own text stays inside the folder: together they lead to its parent.
+// Each link's own text stays inside the folder. On unix they lead to its parent together: ".."
+// after a link is the parent of where that link leads. Windows drops "up\.." before it follows
+// anything, so there the same link leads to "sub" and is harmless.
 it('refuses a link that leaves the folder through another link', async () => {
   const { zipPath, out } = scene([
     { name: 'sub/up', mode: LINK, data: '..' },
     { name: 'escape', mode: LINK, data: 'sub/up/..' },
   ])
+  if (process.platform === 'win32') {
+    await unpack(zipPath, out)
+    expect(realpathSync(join(out, 'escape'))).toBe(realpathSync(join(out, 'sub')))
+    return
+  }
+
   await expect(unpack(zipPath, out)).rejects.toThrow(/leads outside/)
 })
 
