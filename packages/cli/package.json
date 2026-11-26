@@ -16,7 +16,7 @@
   "devDependencies": {
     "@tapet/app": "workspace:*",
     "@types/yauzl": "^3.4.0",
-    "ai": "^7.0.157",
+    "ai": "^7.0.179",
     "esbuild": "^0.28.2"
   }
 }
