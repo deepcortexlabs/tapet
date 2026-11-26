@@ -751,10 +751,10 @@ export function createSession(options: SessionOptions): Session {
       refresh()
       const message = `malformed data in a pipe into panel "${panelId}": ${problem}`
       notice(`a pipe into panel "${panelId}" stopped. ${message}`)
-      res.setHeader('connection', 'close')
       // The pipe command reads this answer and exits. Closing the connection while it's still
       // sending would reset it, and on Windows the reset loses the answer, so the rest of its data
-      // is read and dropped for a moment first.
+      // is read and dropped for a moment first. A "connection: close" header would undo that:
+      // Node then closes the connection as soon as the answer is written.
       reply(res, 422, { error: message, session: id }, () => {
         const timer = setTimeout(() => req.destroy(), PIPE_GRACE_MS)
         req.once('close', () => clearTimeout(timer))

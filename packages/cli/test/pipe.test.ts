@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process'
+import { once } from 'node:events'
+import { connect } from 'node:net'
 import { join } from 'node:path'
+import { setTimeout } from 'node:timers/promises'
 import { afterEach, expect, it } from 'vitest'
 import { attachSession } from '../src/session-client.ts'
 import { fakeApp } from './fake-app.ts'
@@ -64,6 +67,25 @@ it('stops at malformed data and says how to read the session log', async () => {
   expect(code).toBe(1)
   expect(stderr).toContain('malformed data')
   expect(stderr).toContain('logs --session')
+})
+
+// On Windows, closing while the pipe is still sending loses the answer the pipe command prints.
+it('keeps reading for a moment after refusing malformed data', async () => {
+  const { channel } = await panelChannel({ format: 'ndjson', update: 'append', view: 'table' })
+  const url = new URL(`http://${channel}`)
+  const socket = connect(Number(url.port), url.hostname)
+  let closed = false
+  socket.on('close', () => (closed = true)).on('error', () => (closed = true))
+  // A pipe that is still sending: one malformed line, and no end of its data.
+  socket.write(
+    `PUT ${url.pathname}${url.search} HTTP/1.1\r\nHost: ${url.host}\r\n` +
+      'Transfer-Encoding: chunked\r\n\r\n9\r\nnot json\n\r\n',
+  )
+  const [answer] = (await once(socket, 'data')) as [Buffer]
+  expect(answer.toString()).toContain('422')
+  await setTimeout(300)
+  expect(closed).toBe(false)
+  socket.destroy()
 })
 
 it('exits with 75 when the session has ended, since an agent can resume it', async () => {
