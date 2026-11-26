@@ -101,7 +101,7 @@ The official list of what tapet does today.
 - **One shared app:** a single Electron app serves every agent. `tapet mcp` finds it through a local socket, or starts it.
 - **Version check:** when the running app speaks another internal protocol version, tool calls fail and ask the user to quit tapet and retry.
 - **Menu-bar mode:** `app_presence: menu_bar` hides the Dock icon and lists open windows in a tray menu.
-- **Setup:** `tapet setup` downloads tapet's pinned Electron. When it's missing, tool calls say what to run.
+- **Setup:** `tapet setup` downloads tapet's pinned Electron and puts it in place only once it is fully unpacked. When it's missing, tool calls say what to run.
 - **Session logs:** `tapet logs --session <id>` shows a session's tool calls, pipes, malformed data and render errors.
 - **Home folder:** `~/.tapet`, or `TAPET_HOME`.
 - **Local only:** tapet listens on localhost, with a token per session, and refuses requests that carry an `Origin` header.

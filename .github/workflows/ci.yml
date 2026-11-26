@@ -25,6 +25,29 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
+      # `tapet setup` unpacks in the system's temporary folder, then moves the result to tapet's
+      # home, which can be on another disk. A test does that for real, so it needs a folder on a
+      # disk other than the temporary folder's: Linux and Windows runners have one, macOS gets a
+      # disk image.
+      - name: Provide a second disk for the tests
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Linux)
+              disk=/dev/shm/tapet-other-disk
+              ;;
+            Windows)
+              disk="$RUNNER_TEMP/tapet-other-disk"
+              ;;
+            macOS)
+              disk="$RUNNER_TEMP/tapet-other-disk"
+              hdiutil create -size 64m -fs APFS -volname tapet-other-disk "$RUNNER_TEMP/tapet-other-disk.dmg"
+              mkdir -p "$disk"
+              hdiutil attach "$RUNNER_TEMP/tapet-other-disk.dmg" -mountpoint "$disk" -nobrowse
+              ;;
+          esac
+          mkdir -p "$disk"
+          echo "TAPET_TEST_OTHER_DISK=$disk" >> "$GITHUB_ENV"
       - run: pnpm test
       # Ubuntu 24.04 restricts the user namespaces Electron's sandbox needs.
       - if: runner.os == 'Linux'

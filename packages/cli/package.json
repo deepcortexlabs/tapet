@@ -10,11 +10,12 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@tapet/core": "workspace:*",
     "@tapet/protocol": "workspace:*",
-    "extract-zip": "^2.0.1",
+    "yauzl": "^3.4.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tapet/app": "workspace:*",
+    "@types/yauzl": "^3.4.0",
     "ai": "^7.0.157",
     "esbuild": "^0.28.2"
   }

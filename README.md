@@ -259,6 +259,8 @@ pnpm test
 
 Also `pnpm test:e2e` (builds the app, then drives it through MCP with Playwright), `pnpm lint`, `pnpm format` and `pnpm typecheck`. [FEATURES.md](FEATURES.md) lists what tapet does today, [DESIGN.md](DESIGN.md) holds the design and the decisions behind it, and `packages/cli/docs` holds the docs agents read.
 
+One test moves an unpacked folder to a second disk, as `tapet setup` does when the system's temporary folder is on another disk than tapet's home. CI provides that disk on every platform. Locally the test is skipped unless `TAPET_TEST_OTHER_DISK` names a folder on a disk other than the temporary folder's.
+
 ### Releasing
 
 `pnpm package` builds the npm package, `@deepcortex/tapet`, into `packages/cli/dist`. Its version is `TAPET_VERSION` in `packages/protocol/src/index.ts`. To release, set it, commit, and push a matching tag:
