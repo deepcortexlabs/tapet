@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto'
 import { mkdir, rm } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import {
   BrowserWindow,
   MessageChannelMain,
@@ -334,9 +335,29 @@ async function captureWindow(record: SessionRecord, requestId: number, rect?: Re
     return
   }
 
-  const image = await window.webContents.capturePage(rect)
+  const image = await capturePage(window, rect)
   const { scaleFactor } = screen.getDisplayMatching(window.getBounds())
   reply({ png: new Uint8Array(image.toPNG({ scaleFactor })) })
+}
+
+// Chromium's compositor now and then answers a capture with no image ("UnknownVizError"), seen
+// under Linux's virtual display while the window was redrawing. So a failed capture is tried
+// again a few times before it is reported.
+const CAPTURE_ATTEMPTS = 5
+const CAPTURE_RETRY_MS = 100
+
+async function capturePage(window: BrowserWindow, rect?: Rect) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await window.webContents.capturePage(rect)
+    } catch (error) {
+      if (attempt === CAPTURE_ATTEMPTS || window.isDestroyed()) {
+        throw error
+      }
+
+      await delay(CAPTURE_RETRY_MS)
+    }
+  }
 }
 
 async function handleControl(socket: Socket, line: string) {

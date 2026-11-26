@@ -87,6 +87,21 @@ test('an agent shows a live log with a smart summary, then ends and reattaches i
       outputs: [{ text: 'Saw **3 lines**', model: 'openai/fake', tokens: 16 }],
     })
 
+    // The compositor now and then refuses a capture, and tapet tries again: here the first two
+    // captures are refused.
+    await app.evaluate(({ BrowserWindow }) => {
+      const contents = BrowserWindow.getAllWindows()[0]?.webContents
+      if (!contents) {
+        return
+      }
+
+      const capture = contents.capturePage.bind(contents)
+      let refusals = 2
+      contents.capturePage = (...args) => {
+        refusals -= 1
+        return refusals >= 0 ? Promise.reject(new Error('UnknownVizError')) : capture(...args)
+      }
+    })
     const shot = await call('window_screenshot')
     const [image] = shot.content
     // When there is no image, the tool's answer says why.
