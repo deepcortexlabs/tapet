@@ -89,8 +89,8 @@ test('an agent shows a live log with a smart summary, then ends and reattaches i
 
     const shot = await call('window_screenshot')
     const [image] = shot.content
-    // On failure this shows the tool's answer, which says why there is no image.
-    expect(image).toMatchObject({ type: 'image' })
+    // When there is no image, the tool's answer says why.
+    expect(image?.type, text(shot)).toBe('image')
     const expected = await app.evaluate(({ BrowserWindow, screen }) => {
       const found = BrowserWindow.getAllWindows()[0]
       const [width = 0, height = 0] = found?.getContentSize() ?? []
